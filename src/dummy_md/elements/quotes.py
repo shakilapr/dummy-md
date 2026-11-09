@@ -153,17 +153,18 @@ class CalloutGenerator:
         )
 
     def _kind(self, context: GenerationContext) -> str:
-        choices = [
-            kind
+        candidates = [
+            (feature, kind)
             for feature, kind in (
                 *_GITHUB_CALLOUTS.items(),
                 *_OBSIDIAN_CALLOUTS.items(),
             )
             if context.supports(feature)
         ]
-        if not choices:
+        if not candidates:
             return "note"
-        return context.rng.choice(choices)
+        chosen = context.weighted_feature([feature for feature, _ in candidates])
+        return next(kind for feature, kind in candidates if feature == chosen)
 
 
 __all__ = ["CalloutGenerator", "QuoteGenerator", "QuoteOptions"]

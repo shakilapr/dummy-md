@@ -15,6 +15,8 @@ class HeadingOptions:
     levels: tuple[int, ...] = (1, 2, 3, 4)
     style: Literal["atx", "setext", "random"] = "random"
     closed: bool = False
+    closed_ratio: float = 0.5
+    setext_ratio: float = 0.25
     allow_skips: bool = False
     attribute_ratio: float = 0.2
     repeat_ratio: float = 0.12
@@ -46,7 +48,7 @@ class HeadingGenerator:
         context.headings.last_title = text
 
         style = self._style(context, options, level)
-        closed = options.closed and context.rng.random() < 0.5
+        closed = options.closed and context.rng.random() < options.closed_ratio
         attributes = self._attributes(context, options)
         return Heading(
             level=level,
@@ -78,7 +80,7 @@ class HeadingGenerator:
             return "setext"
         if options.style == "atx" and atx_ok:
             return "atx"
-        if setext_ok and (not atx_ok or context.rng.random() < 0.25):
+        if setext_ok and (not atx_ok or context.rng.random() < options.setext_ratio):
             return "setext"
         return "atx"
 

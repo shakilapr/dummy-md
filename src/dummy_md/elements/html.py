@@ -11,7 +11,7 @@ class HTMLGenerator:
 
     def generate(self, context: GenerationContext) -> BlockNode:
         features = context.active_in_family("html")
-        feature = context.rng.choice(features) if features else "html.block"
+        feature = context.weighted_feature(features) if features else "html.block"
         return self._build(context, feature)
 
     # -- dispatch ---------------------------------------------------------

@@ -77,7 +77,10 @@ class CodeBlockGenerator:
         ]
         if not candidates:
             return None
-        return context.rng.choice(candidates)
+        chosen = context.weighted_feature(
+            [payload.feature_id for payload in candidates]
+        )
+        return next(payload for payload in candidates if payload.feature_id == chosen)
 
     def _fence_character(self, context: GenerationContext) -> Literal["`", "~"]:
         backtick = context.supports("code.fenced.backtick")

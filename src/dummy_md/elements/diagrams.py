@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 from collections.abc import Callable
+from dataclasses import dataclass
 
 from dummy_md.core.context import GenerationContext
 from dummy_md.core.nodes import BlockNode, CodeBlock
+from dummy_md.elements._util import resolve_options
 
 
 def _node(context: GenerationContext) -> str:
@@ -152,17 +154,29 @@ MERMAID_BODIES: dict[str, Callable[[GenerationContext], str]] = {
 }
 
 
+@dataclass(frozen=True, slots=True)
+class DiagramOptions:
+    fence_info: str = "mermaid"
+
+
 class DiagramGenerator:
     family = "diagram"
 
     def generate(self, context: GenerationContext) -> BlockNode:
+        options = resolve_options(
+            context, self.family, DiagramOptions(), DiagramOptions
+        )
         features = [
             feature
             for feature in context.active_in_family("diagram")
             if feature in MERMAID_BODIES
         ]
-        if features:
-            body = MERMAID_BODIES[context.rng.choice(features)](context)
-        else:
-            body = _flowchart(context)
-        return CodeBlock(code=body, info="mermaid")
+        body = (
+            MERMAID_BODIES[context.weighted_feature(features)](context)
+            if features
+            else _flowchart(context)
+        )
+        return CodeBlock(code=body, info=options.fence_info)
+
+
+__all__ = ["DiagramGenerator", "DiagramOptions", "MERMAID_BODIES"]

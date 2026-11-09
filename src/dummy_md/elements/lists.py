@@ -155,17 +155,20 @@ class ListGenerator:
 
     def _delimiter(self, context: GenerationContext, ordered: bool) -> str:
         if ordered:
-            choices = [
-                delimiter
+            candidates = [
+                (feature, delimiter)
                 for feature, delimiter in (
                     ("list.ordered.dot", "."),
                     ("list.ordered.paren", ")"),
                 )
                 if context.supports(feature)
             ]
-            return context.rng.choice(choices) if choices else "."
-        choices = [
-            marker
+            if not candidates:
+                return "."
+            chosen = context.weighted_feature([feature for feature, _ in candidates])
+            return next(option for feature, option in candidates if feature == chosen)
+        candidates = [
+            (feature, marker)
             for feature, marker in (
                 ("list.unordered.hyphen", "-"),
                 ("list.unordered.asterisk", "*"),
@@ -173,7 +176,10 @@ class ListGenerator:
             )
             if context.supports(feature)
         ]
-        return context.rng.choice(choices) if choices else "-"
+        if not candidates:
+            return "-"
+        chosen = context.weighted_feature([feature for feature, _ in candidates])
+        return next(option for feature, option in candidates if feature == chosen)
 
     def _start(self, context: GenerationContext) -> int:
         if context.supports("list.ordered.start") and context.rng.random() < 0.35:

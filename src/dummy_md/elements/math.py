@@ -2,44 +2,77 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
+from typing import Literal
+
 from dummy_md.core.context import GenerationContext
 from dummy_md.core.nodes import BlockNode, CodeBlock, MathBlock
+from dummy_md.elements._util import resolve_options
 from dummy_md.elements.payloads import MATH_ENVIRONMENTS, MATH_PAYLOADS
+
+
+@dataclass(frozen=True, slots=True)
+class MathOptions:
+    fence_ratio: float = 0.3
+    environment_ratio: float = 0.6
+    payload_ratio: float = 0.8
+    delimiter: Literal["dollar", "bracket", "random"] = "random"
 
 
 class MathGenerator:
     family = "math"
 
     def generate(self, context: GenerationContext) -> BlockNode:
+        options = resolve_options(context, self.family, MathOptions(), MathOptions)
         features = context.active_in_family("math")
-        expression = self._expression(context, features)
+        expression = self._expression(context, features, options)
 
-        if "math.fence" in features and context.rng.random() < 0.3:
+        if "math.fence" in features and context.rng.random() < options.fence_ratio:
             return CodeBlock(code=expression, info="math")
 
-        for feature, environment in MATH_ENVIRONMENTS.items():
-            if feature in features:
-                return MathBlock(
-                    expression=self._environment_body(context, environment, expression),
-                    environment=environment,
-                )
+        environments = [feature for feature in MATH_ENVIRONMENTS if feature in features]
+        if environments and context.rng.random() < options.environment_ratio:
+            feature = context.weighted_feature(environments)
+            environment = MATH_ENVIRONMENTS[feature]
+            return MathBlock(
+                expression=self._environment_body(context, environment, expression),
+                environment=environment,
+            )
 
-        delimiter = "bracket" if "math.display.bracket" in features else "dollar"
-        if (
-            "math.display.dollar" not in features
-            and "math.display.bracket" not in features
-        ):
-            delimiter = "dollar"
-        return MathBlock(expression=expression, delimiter=delimiter)  # type: ignore[arg-type]
+        return MathBlock(
+            expression=expression,
+            delimiter=self._delimiter(context, features, options),
+        )
 
     # -- helpers ----------------------------------------------------------
-    def _expression(self, context: GenerationContext, features: tuple[str, ...]) -> str:
-        builders = [
-            build for feature, build in MATH_PAYLOADS.items() if feature in features
+    def _expression(
+        self,
+        context: GenerationContext,
+        features: tuple[str, ...],
+        options: MathOptions,
+    ) -> str:
+        payloads = [feature for feature in MATH_PAYLOADS if feature in features]
+        if payloads and context.rng.random() < options.payload_ratio:
+            return MATH_PAYLOADS[context.weighted_feature(payloads)](context)
+        return "x + y = z"
+
+    def _delimiter(
+        self,
+        context: GenerationContext,
+        features: tuple[str, ...],
+        options: MathOptions,
+    ) -> Literal["dollar", "bracket"]:
+        if options.delimiter != "random":
+            return options.delimiter
+        candidates = [
+            feature
+            for feature in ("math.display.dollar", "math.display.bracket")
+            if feature in features
         ]
-        if builders:
-            return context.rng.choice(builders)(context)
-        return self._environment_body(context, "equation", "x + y = z")
+        if not candidates:
+            return "dollar"
+        chosen = context.weighted_feature(candidates)
+        return "dollar" if chosen.endswith("dollar") else "bracket"
 
     def _environment_body(
         self, context: GenerationContext, environment: str, expression: str

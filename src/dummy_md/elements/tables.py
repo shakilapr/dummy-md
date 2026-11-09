@@ -119,14 +119,19 @@ class TableGenerator:
         return columns
 
     def _alignment(self, context: GenerationContext) -> Alignment:
-        choices: list[Alignment] = [
-            alignment for feature, alignment in _ALIGNMENTS if context.supports(feature)
+        candidates = [
+            (feature, alignment)
+            for feature, alignment in _ALIGNMENTS
+            if context.supports(feature)
         ]
-        if not choices:
+        if not candidates:
             return "default"
         if context.supports("table.align.mixed"):
-            return context.rng.choice(choices)
-        return choices[0]
+            chosen = context.weighted_feature([feature for feature, _ in candidates])
+            return next(
+                alignment for feature, alignment in candidates if feature == chosen
+            )
+        return candidates[0][1]
 
     def _cell(self, context: GenerationContext, options: TableOptions) -> TableCell:
         children = self._cell_children(context, options)
@@ -147,7 +152,7 @@ class TableGenerator:
         styles = [feature for feature in _CELL_STYLES if context.supports(feature)]
         if not styles or context.rng.random() >= options.inline_ratio:
             return (Text(text),)
-        return self._styled(context, context.rng.choice(styles), text)
+        return self._styled(context, context.weighted_feature(styles), text)
 
     def _styled(
         self, context: GenerationContext, feature: str, text: str

@@ -149,7 +149,7 @@ class LinkGenerator:
                 choices.append(feature)
         if not choices:
             return None
-        feature = context.rng.choice(choices)
+        feature = context.weighted_feature(choices)
         if feature == "link.autolink.uri":
             return Autolink(target=context.text.url())
         if feature == "link.autolink.email":
@@ -182,7 +182,7 @@ class LinkGenerator:
         ]
         if not choices:
             return context.text.url()
-        feature = context.rng.choice(choices)
+        feature = context.weighted_feature(choices)
         if feature == "link.path.relative":
             return "docs/" + context.text.path()
         if feature == "link.path.root":

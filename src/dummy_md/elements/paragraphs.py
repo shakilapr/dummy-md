@@ -50,9 +50,12 @@ _EMPHASIS: dict[str, Callable[[str], InlineNode]] = {
 class ParagraphOptions:
     min_sentences: int = 2
     max_sentences: int = 5
+    sentence_min_words: int = 5
+    sentence_max_words: int = 14
     inline_ratio: float = 0.75
     max_inline: int = 3
     break_ratio: float = 0.35
+    emoji_ratio: float = 0.25
 
 
 class ParagraphGenerator:
@@ -65,8 +68,8 @@ class ParagraphGenerator:
             context, self.family, ParagraphOptions(), ParagraphOptions
         )
         count = context.rng.randint(options.min_sentences, options.max_sentences)
-        builders = [
-            _EMPHASIS[feature]
+        feature_ids = [
+            feature
             for feature in context.active_in_family("inline")
             if feature in _EMPHASIS
         ]
@@ -78,18 +81,21 @@ class ParagraphGenerator:
                 break_node = self._inter_sentence_break(context, options)
                 children.append(break_node if break_node else Text(" "))
             use_decoration = (
-                builders
+                feature_ids
                 and decorations < options.max_inline
                 and context.rng.random() < options.inline_ratio
             )
             if use_decoration:
-                builder = context.rng.choice(builders)
-                children.extend(self._decorate(context, builder))
+                builder = _EMPHASIS[context.weighted_feature(feature_ids)]
+                children.extend(self._decorate(context, builder, options))
                 decorations += 1
             else:
-                children.append(Text(context.text.sentence()))
+                children.append(Text(self._sentence(context, options)))
 
-        if context.supports("inline.emoji.unicode") and context.rng.random() < 0.25:
+        if (
+            context.supports("inline.emoji.unicode")
+            and context.rng.random() < options.emoji_ratio
+        ):
             children.append(Text(" \U0001f642"))
         return Paragraph(children=tuple(children))
 
@@ -112,10 +118,19 @@ class ParagraphGenerator:
             return LineBreak(hard=False, style="soft")
         return context.rng.choice(styles)
 
+    def _sentence(self, context: GenerationContext, options: ParagraphOptions) -> str:
+        return context.text.sentence(
+            min_words=options.sentence_min_words,
+            max_words=options.sentence_max_words,
+        )
+
     def _decorate(
-        self, context: GenerationContext, builder: Callable[[str], InlineNode]
+        self,
+        context: GenerationContext,
+        builder: Callable[[str], InlineNode],
+        options: ParagraphOptions,
     ) -> tuple[InlineNode, ...]:
-        sentence = context.text.sentence(min_words=6, max_words=14)
+        sentence = self._sentence(context, options)
         words = sentence.split(" ")
         if len(words) < 5:
             return (Text(sentence),)
