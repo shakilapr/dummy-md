@@ -166,6 +166,7 @@ class ListItem(BlockNode):
 @dataclass(frozen=True, slots=True)
 class Blockquote(BlockNode):
     children: tuple[BlockNode, ...] = ()
+    lazy: bool = False
 
 
 @dataclass(frozen=True, slots=True)
@@ -335,6 +336,13 @@ class Math(InlineNode):
     delimiter: MathDelimiter = "dollar"
 
 
+@dataclass(frozen=True, slots=True)
+class InlineFootnote(InlineNode):
+    """Pandoc-style inline footnote: ``^[text]``."""
+
+    children: tuple[InlineNode, ...] = ()
+
+
 # --------------------------------------------------------------------------
 # Traversal
 # --------------------------------------------------------------------------
@@ -355,7 +363,7 @@ def children_of(node: MarkdownNode) -> tuple[MarkdownNode, ...]:
         return tuple(cells)
     if isinstance(node, TableCell):
         return tuple(node.children)
-    if isinstance(node, Emphasis | Link | Strikethrough):
+    if isinstance(node, Emphasis | Link | Strikethrough | InlineFootnote):
         return tuple(node.children)
     if isinstance(node, Image):
         return tuple(node.alt)
