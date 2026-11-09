@@ -16,6 +16,7 @@ import pytest
 import dummy_md
 from dummy_md import DocumentSpec, ElementRule, Generator, LengthSpec
 from dummy_md.core.catalog import IMPLEMENTED_IDS
+from dummy_md.core.context import GenerationContext
 from dummy_md.core.nodes import (
     Blockquote,
     CodeBlock,
@@ -423,3 +424,272 @@ def test_full_document_with_fixed_features_is_valid() -> None:
     assert len(text) >= 3500
     report = dummy_md.validate(text, "extended")
     assert report.ok
+
+
+# --------------------------------------------------------------------------
+# extended syntax added after the initial catalog
+# --------------------------------------------------------------------------
+def _paragraph_context(feature: str) -> GenerationContext:
+    return build_context(
+        dialect="extended",
+        include=(feature,),
+        options={
+            "paragraph": ElementRule(
+                options=ParagraphOptions(
+                    min_sentences=2,
+                    max_sentences=2,
+                    sentence_min_words=6,
+                    sentence_max_words=9,
+                    inline_ratio=1.0,
+                    emoji_ratio=0.0,
+                    block_ratio=0.0,
+                )
+            )
+        },
+    )
+
+
+@pytest.mark.parametrize(
+    ("feature", "marker"),
+    [
+        ("inline.superscript", "^"),
+        ("inline.subscript", "~"),
+        ("inline.underline", "++"),
+        ("inline.highlight", "=="),
+        ("inline.insert", "^^"),
+        ("inline.emoji.shortcode", ":smile:"),
+        ("inline.small_caps", "{.smallcaps}"),
+    ],
+)
+def test_inline_variants_reach_output(feature: str, marker: str) -> None:
+    context = _paragraph_context(feature)
+    block = REGISTRY.generator("paragraph").generate(context)
+    assert marker in render_block(block, context)
+
+
+@pytest.mark.parametrize(
+    ("feature", "marker"),
+    [
+        ("inline.critic.deletion", "{--"),
+        ("inline.critic.insertion", "{++"),
+        ("inline.critic.replacement", "~>"),
+        ("inline.critic.highlight", "{=="),
+        ("inline.critic.comment", "{>>"),
+    ],
+)
+def test_critic_markup_reaches_output(feature: str, marker: str) -> None:
+    context = _paragraph_context(feature)
+    block = REGISTRY.generator("paragraph").generate(context)
+    assert marker in render_block(block, context)
+
+
+def test_abbreviation_definition_and_reference() -> None:
+    definition_context = build_context(
+        dialect="extended",
+        include=("inline.abbreviation.definition",),
+        options={"paragraph": ElementRule(options=ParagraphOptions(block_ratio=1.0))},
+    )
+    definition = REGISTRY.generator("paragraph").generate(definition_context)
+    rendered = render_block(definition, definition_context)
+    assert rendered.startswith("*[") and "]: " in rendered
+
+    reference_context = build_context(
+        dialect="extended",
+        include=("inline.abbreviation.reference",),
+        options={"paragraph": ElementRule(options=ParagraphOptions(block_ratio=0.0))},
+        seed=3,
+    )
+    reference = REGISTRY.generator("paragraph").generate(reference_context)
+    assert render_block(reference, reference_context).strip()
+
+
+@pytest.mark.parametrize(
+    ("feature", "marker"),
+    [("paragraph.line_block", "| "), ("paragraph.fenced_div", ":::")],
+)
+def test_block_containers(feature: str, marker: str) -> None:
+    context = build_context(
+        dialect="extended",
+        include=(feature,),
+        options={"paragraph": ElementRule(options=ParagraphOptions(block_ratio=1.0))},
+    )
+    block = REGISTRY.generator("paragraph").generate(context)
+    assert marker in render_block(block, context)
+
+
+def test_theorem_block() -> None:
+    context = build_context(
+        dialect="extended",
+        include=("theorem.block",),
+        options={"paragraph": ElementRule(options=ParagraphOptions(block_ratio=1.0))},
+    )
+    block = REGISTRY.generator("paragraph").generate(context)
+    text = render_block(block, context)
+    assert "::: {.theorem" in text and "title=" in text
+
+
+def test_definition_list() -> None:
+    context = build_context(
+        dialect="extended",
+        include=("list.definition",),
+        options={"list": ElementRule(options=ListOptions(definition_ratio=1.0))},
+    )
+    block = REGISTRY.generator("list").generate(context)
+    text = render_block(block, context)
+    assert text.startswith(": ") or "\n\n: " in text
+
+
+@pytest.mark.parametrize(
+    ("feature", "marker"),
+    [
+        ("list.ordered.alpha", "a. "),
+        ("list.ordered.roman", "i. "),
+        ("list.example_numbered", "(@) "),
+    ],
+)
+def test_ordered_list_styles(feature: str, marker: str) -> None:
+    context = build_context(dialect="extended", include=(feature,))
+    block = REGISTRY.generator("list").generate(context)
+    assert marker in render_block(block, context)
+
+
+@pytest.mark.parametrize(
+    ("features", "marker"),
+    [
+        (("link.wiki.basic",), "[["),
+        (("link.wiki.basic", "link.wiki.alias"), "|"),
+        (("link.wiki.basic", "link.wiki.heading"), "#"),
+        (("link.wiki.basic", "link.wiki.block"), "#^"),
+        (("link.inline", "link.attributes"), "){."),
+    ],
+)
+def test_wiki_links_and_attributes(features: tuple[str, ...], marker: str) -> None:
+    rendered = ""
+    for seed in range(30):
+        context = build_context(dialect="extended", include=features, seed=seed)
+        block = REGISTRY.generator("link").generate(context)
+        rendered = render_block(block, context)
+        if marker in rendered:
+            break
+    assert marker in rendered
+
+
+@pytest.mark.parametrize(
+    ("feature", "expected_style"),
+    [("table.simple", "simple"), ("table.multiline", "multiline")],
+)
+def test_pandoc_table_styles(feature: str, expected_style: str) -> None:
+    context = build_context(
+        dialect="extended",
+        include=(feature,),
+        options={
+            "table": ElementRule(
+                options=TableOptions(
+                    min_rows=2,
+                    max_rows=2,
+                    min_columns=2,
+                    max_columns=2,
+                    style_ratio=1.0,
+                )
+            )
+        },
+    )
+    block = REGISTRY.generator("table").generate(context)
+    assert isinstance(block, Table)
+    assert block.style == expected_style
+    text = render_block(block, context)
+    assert "---" in text
+    if expected_style == "simple":
+        assert "|" not in text
+
+
+def test_math_label_macros_and_crossref() -> None:
+    label_context = build_context(
+        dialect="extended",
+        include=("math.display.dollar", "math.label"),
+        options={"math": ElementRule(options={"label_ratio": 1.0})},
+    )
+    labelled = REGISTRY.generator("math").generate(label_context)
+    assert "\\label{eq:" in render_block(labelled, label_context)
+
+    macro_context = build_context(
+        dialect="extended",
+        include=("math.macros",),
+        options={"math": ElementRule(options={"macro_ratio": 1.0})},
+    )
+    macros = REGISTRY.generator("math").generate(macro_context)
+    assert "\\newcommand" in render_block(macros, macro_context)
+
+    crossref_context = _paragraph_context("math.crossref")
+    crossref = REGISTRY.generator("paragraph").generate(crossref_context)
+    assert "[@eq:" in render_block(crossref, crossref_context)
+
+
+def test_figure_label() -> None:
+    context = build_context(
+        dialect="extended",
+        include=("image.figure.caption", "image.figure.label"),
+        options={"image": ElementRule(options={"figure_ratio": 1.0})},
+    )
+    block = REGISTRY.generator("image").generate(context)
+    assert "{#fig:" in render_block(block, context)
+
+
+@pytest.mark.parametrize(
+    ("feature", "marker"),
+    [
+        ("html.img", "<img "),
+        ("html.picture", "<picture>"),
+        ("html.audio", "<audio"),
+        ("html.video", "<video"),
+        ("html.iframe", "<iframe"),
+        ("html.svg.inline", "<svg"),
+        ("html.colgroup", "<colgroup>"),
+        ("html.thead", "<thead>"),
+        ("html.tbody", "<tbody>"),
+        ("html.tfoot", "<tfoot>"),
+        ("html.table.rowspan", 'rowspan="2"'),
+        ("html.table.colspan", 'colspan="2"'),
+        ("html.parsed_markdown", 'markdown="1"'),
+    ],
+)
+def test_html_variants(feature: str, marker: str) -> None:
+    context = build_context(dialect="extended", include=(feature,))
+    block = REGISTRY.generator("html").generate(context)
+    assert marker in render_block(block, context)
+
+
+DIAGRAM_TOKENS: dict[str, str] = {
+    "diagram.mermaid.swimlane": "flowchart LR",
+    "diagram.mermaid.journey": "journey",
+    "diagram.mermaid.quadrant": "quadrantChart",
+    "diagram.mermaid.requirement": "requirementDiagram",
+    "diagram.mermaid.c4": "C4Context",
+    "diagram.mermaid.mindmap": "mindmap",
+    "diagram.mermaid.timeline": "timeline",
+    "diagram.mermaid.zenuml": "zenuml",
+    "diagram.mermaid.sankey": "sankey-beta",
+    "diagram.mermaid.xy": "xychart-beta",
+    "diagram.mermaid.block": "block-beta",
+    "diagram.mermaid.packet": "packet-beta",
+    "diagram.mermaid.kanban": "kanban",
+    "diagram.mermaid.architecture": "architecture-beta",
+    "diagram.mermaid.radar": "radar-beta",
+    "diagram.mermaid.eventmodeling": "eventmodeling",
+    "diagram.mermaid.treemap": "treemap-beta",
+    "diagram.mermaid.venn": "venn-beta",
+    "diagram.mermaid.ishikawa": "ishikawa",
+    "diagram.mermaid.wardley": "wardley-beta",
+    "diagram.mermaid.treeview": "treeView-beta",
+    "diagram.graphviz": "digraph",
+    "diagram.plantuml": "@startuml",
+    "diagram.d2": "->",
+}
+
+
+@pytest.mark.parametrize("feature", sorted(DIAGRAM_TOKENS))
+def test_diagram_families(feature: str) -> None:
+    context = build_context(dialect="extended", include=(feature,))
+    block = REGISTRY.generator("diagram").generate(context)
+    assert isinstance(block, CodeBlock)
+    assert DIAGRAM_TOKENS[feature] in block.code
