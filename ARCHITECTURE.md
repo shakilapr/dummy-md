@@ -100,8 +100,10 @@ the target is met. It never slices rendered output.
 
 ## 4. Feature Model
 
-A **feature** is one addressable generation target. Features are grouped into 16 families and
-classified by kind, tier, and dialect support.
+A **feature** is one addressable generation target. Features are grouped into families and
+classified by kind, tier, and dialect support. Fifteen families have generators; the rest
+(`citation`, `directive`, `platform`, `mdx`, `stress`, `theorem`) are catalog-only until their
+renderers exist.
 
 ### 4.1 Compatibility legend
 
@@ -211,25 +213,25 @@ round-trip tests, not wishes.
 | `commonmark` | CommonMark 0.31 | raw HTML, entities, reference links | `CommonMarkRenderer` |
 | `gfm` | `commonmark` | pipe tables, task lists, strikethrough, extended autolinks | `GFMRenderer` |
 | `extended` | `gfm` | attributes, footnotes, math, mermaid/diagram fences, callouts, front matter | `GFMRenderer` |
-| `stress` | `extended` | deliberately mixed fixtures, boundary escapes, Unicode torture | `GFMRenderer` |
+| `stress` | `extended` | token-style text and deep nesting over the same capability set | `GFMRenderer` |
 
 `stress` is the only dialect allowed to combine mutually exclusive syntaxes. Everywhere else,
 incompatible features never coexist.
 
-Dialect definitions are declarative:
+Dialect capability sets are derived from the catalog: every feature declares the dialects that
+may emit it, and a dialect's set is the union of its implemented features. The base chain in the
+table above describes intent; the catalog is the source of truth.
 
 ```python
 DialectSpec(
     name="gfm",
-    base="commonmark",
     renderer="gfm",
-    adds=frozenset({"table.pipe", "list.task", "inline.strikethrough", ...}),
+    features=frozenset({"table.pipe", "list.task", "inline.strikethrough", ...}),
 )
 ```
 
-Resolution walks the `base` chain once at import time and produces an immutable
-`frozenset[str]` of feature ids. Requesting a feature outside the set raises `DialectError`
-listing the dialects that do support it.
+Requesting a feature outside the set raises `DialectError` listing the dialects that do support
+it.
 
 ### 5.1 HTML is a dialect decision, not an escape hatch
 
@@ -338,6 +340,9 @@ classDiagram
         +str delimiter
         +int level
     }
+    class Strikethrough {
+        +tuple[InlineNode] children
+    }
     class CodeSpan {
         +str code
     }
@@ -376,6 +381,15 @@ classDiagram
         +bool display
         +str delimiter
     }
+    class MathBlock {
+        +str expression
+        +str delimiter
+        +str environment
+    }
+    class Figure {
+        +Image image
+        +str caption
+    }
 
     MarkdownNode <|-- BlockNode
     MarkdownNode <|-- InlineNode
@@ -390,10 +404,13 @@ classDiagram
     BlockNode <|-- Blockquote
     BlockNode <|-- Callout
     BlockNode <|-- Table
+    BlockNode <|-- MathBlock
+    BlockNode <|-- Figure
     InlineNode <|-- Text
     InlineNode <|-- Escape
     InlineNode <|-- CharacterReference
     InlineNode <|-- Emphasis
+    InlineNode <|-- Strikethrough
     InlineNode <|-- CodeSpan
     InlineNode <|-- Link
     InlineNode <|-- Image
@@ -628,6 +645,17 @@ planner records node indices in `context.budget.elastic`). Structural nodes — 
 blocks, headings, math — are never resized by the fit loop; their generators receive size hints
 instead.
 
+Before fitting, the engine trims whole trailing blocks while the section is over target, never
+below a `min_count` floor or a protected structural floor. If the remaining structure alone
+exceeds an exact target, `BudgetError` reports the achievable length.
+
+### 10.4 Sections
+
+Serialized units are generated in sections of `SECTION_CHARS` (16 000 characters, overridable
+via `chunk_size`). Each section is planned, trimmed, and fitted against its share of the
+remaining budget; the last section absorbs the remainder. This bounds the fit loop's working
+set and makes `iter_chunks()` a real streaming API rather than a slicing convenience.
+
 ---
 
 ## 11. Renderers and Escaping
@@ -660,6 +688,7 @@ escaping at all).
 | Tight/loose lists | Loose lists separate every item with a blank line; tight lists never do |
 | Blockquotes | Prefix every emitted line, including blank lines, with `> ` |
 | HTML | Emit verbatim; never re-indent multi-line HTML blocks |
+| Front matter | YAML/TOML bodies get `---`/`+++` fences; a JSON body is emitted verbatim and must be a complete object |
 | References | Append unused definitions in a stable, sorted order after the body |
 | Line endings | `\n` only, always; a single trailing newline terminates the document |
 

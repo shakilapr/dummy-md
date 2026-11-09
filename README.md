@@ -7,23 +7,22 @@
 
 > **Lorem Ipsum for entire Markdown documents, not just paragraphs.**
 
-`dummy-md` is a Python library that generates arbitrary amounts of syntactically valid, structurally sound Markdown containing configurable combinations of Markdown elements, populated with plausible placeholder content.
+`dummy-md` generates arbitrary amounts of syntactically valid Markdown as configurable
+combinations of Markdown features, filled with placeholder content. It is built for parser
+benchmarks, renderer fixtures, editor stress tests, and sample corpora.
 
-Whether you are benchmarking a Markdown renderer, building automated test suites for a static site generator, stress-testing an editor, or preparing sample datasets for LLM evaluation, `dummy-md` delivers deterministic, high-variety Markdown documents on demand.
+Output is produced from a typed AST and serialized per dialect, so tables stay aligned, code
+fences close, list nesting indents correctly, and reference links resolve.
 
----
-
-## Key Highlights
-
-- **Syntactically Valid by Design:** Generates a typed Markdown AST before serializing, preventing broken table pipes, unclosed code fences, and malformed list nesting.
-- **Exhaustive Element Support:** Includes the complete set of standard Markdown elements (ATX/Setext headings, indented/fenced code, tight/loose lists, reference links, HTML blocks, character references) and extended syntaxes (tables, task lists, footnotes, math, Mermaid).
-- **Accurate Length Budgeting:** Control document length by characters, words, lines, top-level blocks, or approximate file size (`KB`, `MB`).
-- **Reproducible & Deterministic:** Given the same configuration and seed, `dummy-md` produces 100% byte-identical output across systems.
-- **Dialect-Aware:** Support for standard baseline syntax, GitHub Flavored Markdown (GFM), and extended dialect plugins.
-- **Scalable Streaming:** Stream multi-gigabyte corpora directly to disk or network pipelines with minimal memory overhead.
-- **Zero Core Runtime Dependencies:** Written in modern Python standard library with optional developer and parser-testing extensions.
-
----
+- **Dialect-aware:** CommonMark, GFM, and an `extended` dialect (math, footnotes, callouts,
+  diagrams, front matter). A feature the dialect cannot express is rejected, never faked.
+- **Feature-level selection:** `include` / `exclude` accept exact ids (`table.pipe`) and globs
+  (`heading.*`, `math.*`).
+- **Deterministic:** same spec and seed → byte-identical output, independent of
+  `PYTHONHASHSEED`.
+- **Length control:** target `chars`, `words`, `lines`, `blocks`, or `bytes`, in approximate or
+  exact mode.
+- **Zero runtime dependencies:** the core uses only the standard library.
 
 ## Installation
 
@@ -31,162 +30,169 @@ Whether you are benchmarking a Markdown renderer, building automated test suites
 pip install dummy-md
 ```
 
-To install with development and validation tools (e.g., `markdown-it-py`, `hypothesis`):
+For development extras (`pytest`, `hypothesis`, `markdown-it-py`, `ruff`, `mypy`):
 
 ```bash
 pip install "dummy-md[dev]"
 ```
 
----
-
 ## Quickstart
-
-### Simple API
-
-Generate valid Markdown with a single function call:
 
 ```python
 import dummy_md
 
-# Generate approximately 5,000 characters of GFM
-markdown_text = dummy_md.generate(
-    length=5000,
-    unit="chars",
-    dialect="gfm",
-    elements=["heading", "paragraph", "table", "list", "code"],
-    seed=42,
-)
-
-print(markdown_text)
+markdown = dummy_md.generate(length=5000, unit="chars", seed=42)
+print(markdown)
 ```
 
-### Advanced API
-
-Gain granular control over element counts, weights, nesting rules, and text styles:
+Pick exactly what the document should contain:
 
 ```python
-from dummy_md import Generator, DocumentSpec, ElementRule, LengthSpec
-from dummy_md.elements import TableOptions, HeadingOptions
+markdown = dummy_md.generate(
+    length=8000,
+    dialect="gfm",
+    include=["heading.*", "paragraph.*", "table.pipe", "list.*", "code.*"],
+    exclude=["html.*"],
+    seed=1337,
+)
+```
+
+Unknown or unimplemented feature ids raise `ConfigurationError`; asking CommonMark for
+`table.pipe` raises `DialectError` listing the dialects that support it.
+
+### Advanced specification
+
+```python
+from dummy_md import DocumentSpec, ElementRule, Generator, LengthSpec
+from dummy_md.elements import HeadingOptions, TableOptions
 
 spec = DocumentSpec(
     dialect="gfm",
-    seed=1337,
-    length=LengthSpec(
-        value=15000,
-        unit="chars",
-        mode="approximate",
-        tolerance=0.03,
-    ),
+    seed=42,
+    length=LengthSpec(value=15_000, unit="chars", mode="approximate", tolerance=0.03),
+    include=["heading.*", "paragraph.*", "table.*", "code.*", "list.*"],
     elements={
         "heading": ElementRule(
             min_count=3,
-            max_count=8,
+            max_count=10,
             weight=3,
-            options=HeadingOptions(levels=[1, 2, 3], style="atx"),
+            options=HeadingOptions(levels=(1, 2, 3), style="atx"),
         ),
-        "paragraph": ElementRule(weight=8),
+        "paragraph": ElementRule(weight=10),
         "table": ElementRule(
             min_count=2,
             weight=4,
-            options=TableOptions(min_rows=3, max_rows=10, min_columns=3, max_columns=6),
+            options=TableOptions(min_rows=4, max_rows=8, min_columns=3, max_columns=5),
         ),
-        "code_block": ElementRule(weight=3),
-        "task_list": ElementRule(weight=2),
-        "blockquote": ElementRule(weight=2),
     },
     text_style="pseudowords",
     max_nesting_depth=3,
 )
 
 generator = Generator(spec)
-
-# Output as string or write directly to file
-markdown_output = generator.generate()
-generator.write("sample.md")
+markdown = generator.generate()
+document = generator.to_ast()  # inspect the tree
+generator.write("benchmark_fixture.md")
 ```
 
----
+### Streaming
 
-## Command Line Interface (CLI)
+```python
+for chunk in dummy_md.iter_chunks(length=200_000, unit="chars", seed=7):
+    sink.write(chunk)
+```
 
-`dummy-md` includes a CLI for immediate test file generation:
+Documents are generated in sections (16k characters by default); concatenating the chunks
+equals `generate()` for the same spec.
+
+## Dialects
+
+| Dialect | Adds |
+| :-- | :-- |
+| `commonmark` | CommonMark core: ATX/Setext headings, lists, code, quotes, HTML blocks, reference links, entities |
+| `gfm` | CommonMark + pipe tables, task lists, strikethrough, bare autolinks |
+| `extended` | GFM + heading/code attributes, figure captions, footnotes, math, callouts, Mermaid, front matter |
+| `stress` | `extended` capability set with token-style text for parser stress |
+
+Counts: 423 catalogued generation targets, 228 currently implemented (117 CommonMark, 151 GFM,
+228 extended).
 
 ```bash
-# Generate sample GFM to stdout
-dummy-md generate --chars 10000 --dialect gfm
+dummy-md elements --dialect gfm     # implemented ids for a dialect
+dummy-md elements --all             # full catalog, unimplemented ids marked
+```
 
-# Generate standard compliant text
-dummy-md generate --chars 8000 --dialect standard
+## Length control
 
-# Use a built-in preset and write to file
-dummy-md generate --preset tables --words 2500 --output test_tables.md
+| Unit | Measures |
+| :-- | :-- |
+| `chars` | serialized characters, excluding the trailing newline |
+| `words` | words in textual content, excluding markup |
+| `lines` | newline-delimited output lines |
+| `blocks` | top-level blocks |
+| `bytes` | UTF-8 encoded size |
 
-# Generate deterministic output with an explicit seed
-dummy-md generate --seed 42 --blocks 30 --output fixture.md
+`mode="approximate"` (default) tolerates `tolerance` (default 5%). `mode="exact"` fits the
+target by resizing elastic paragraph text — exactness is guaranteed for `chars` and `words`;
+for `lines`, `blocks`, and `bytes` an unreachable target raises `BudgetError` with the closest
+achievable value.
 
-# Generate large benchmark file (streaming directly to disk)
-dummy-md generate --size 50MB --output large_benchmark.md
+```python
+dummy_md.generate(length=1234, mode="exact", seed=5)  # exactly 1234 characters
+```
 
-# List available elements and presets
-dummy-md elements
+## Presets
+
+```python
+dummy_md.generate(length=3000, preset="readme", seed=1)
+```
+
+`default`, `minimal`, `readme`, `tables`, `stress`. `dummy_md.available_presets()` returns the
+descriptions.
+
+## Command line
+
+```bash
+dummy-md generate --chars 10000 --dialect gfm --seed 42
+dummy-md generate --words 2500 --preset tables -o tables.md
+dummy-md generate --bytes 2MB --exclude "html.*" --seed 1337
+dummy-md elements --dialect extended
+dummy-md dialects
 dummy-md presets
+dummy-md validate fixture.md --dialect gfm
 ```
 
----
+Exit codes: `0` success, `1` generation/validation failure, `2` usage error. Errors go to
+stderr. `validate` needs the `[dev]` extra (it uses `markdown-it-py`).
 
-## Supported Elements Catalog
+## Determinism
 
-| Family | Elements | Notes |
-| :--- | :--- | :--- |
-| **Headings** | ATX (`#`), Setext (`===`, `---`) | Levels 1–6, closed sequences, hierarchical validation |
-| **Text** | Paragraphs, soft breaks, hard breaks (`  ` / `\`) | Realistic punctuation and word length distributions |
-| **Formatting** | Bold, italic, bold+italic, strikethrough | Properly nested inline delimiters (`*`, `_`, `~~`) |
-| **Lists** | Unordered (`-`, `*`, `+`), Ordered (`1.`, `1)`), Task lists | Tight and loose spacing, arbitrary start numbers, deep nesting |
-| **Code** | Indented blocks (4-space), fenced blocks (```` ``` ````, `~~~`) | Adaptive fence lengths, syntax highlighting language tags |
-| **Tables** | Headers, rows, cell alignment (`:---`, `:---:`, `---:`) | Pipe escaping, inline formatting inside cells |
-| **Links** | Inline (`[text](url)`), full reference, collapsed, shortcut, autolinks | Target validation, custom protocols, angle brackets `<url>` |
-| **Images** | Inline images, reference images (full, collapsed, shortcut) | Generated placeholder URLs and descriptive alt text |
-| **Quotes** | Blockquotes, nested blockquotes (`> >`) | Multiline continuation support |
-| **Separators** | Thematic breaks / Horizontal rules (`---`, `***`, `___`) | Section breaks with variable spacing |
-| **References** | Link reference definitions, footnotes (`[^1]`) | Multiline definitions, title delimiters (`"`, `'`, `()`) |
-| **HTML** | All 7 HTML block types, inline tags, `<details>` accordion | Full standard compliance |
-| **Escapes** | Backslash escapes, entity & numeric character references | Escaping all 12 ASCII punctuation symbols, `&copy;`, `&#38;` |
-| **Extensions** | Math (`$...$`), Mermaid diagrams, Admonitions | Dialect-specific or renderer plugins |
-| **Metadata** | YAML (`---`) or TOML (`+++`) front matter | Header metadata generation |
+```python
+import hashlib
 
----
-
-## Architecture Overview
-
-`dummy-md` avoids error-prone string concatenation. Generation is partitioned into clear, decoupled layers:
-
-```mermaid
-flowchart LR
-    A[Document Spec] --> B[Planner & Budget Allocator]
-    B --> C[Element Generators]
-    D[Dummy Content Engine] --> C
-    C --> E[Typed Markdown AST]
-    E --> F[Dialect-Aware Renderer]
-    F --> G[Markdown Output / Stream]
+first = dummy_md.generate(length=2000, seed=4242)
+second = dummy_md.generate(length=2000, seed=4242)
+assert (
+    hashlib.sha256(first.encode()).digest() == hashlib.sha256(second.encode()).digest()
+)
 ```
 
-1. **Document Planner:** Decides element sequence using a constraint-first, weighted-random-second approach.
-2. **Dummy Content Engine:** Context-aware text generator producing natural pseudowords, classic Lorem Ipsum, or technical tokens.
-3. **Markdown AST:** Strongly typed tree ensuring structural invariants before serialization.
-4. **Dialect Renderer:** Formats nodes into clean Markdown with automatic character escaping, list indentation, and code fence sizing.
+All randomness flows through one seeded `random.Random`; nothing reads the clock, environment,
+or hash order.
 
-For comprehensive architectural specifications, refer to [ARCHITECTURE.md](file:///e:/work/other/dummy-md/ARCHITECTURE.md).
+## Development
 
-For roadmap and development phases, refer to [work-plan.md](file:///e:/work/other/dummy-md/work-plan.md).
+```bash
+python -m venv .venv
+.venv/Scripts/pip install -e ".[dev]"   # POSIX: .venv/bin/pip
+.venv/Scripts/python -m pytest
+.venv/Scripts/python -m mypy src/dummy_md tests
+.venv/Scripts/python -m ruff check .
+```
 
----
-
-## Contributing & Agent Guidelines
-
-We welcome contributions! For coding conventions, architectural invariants, and instructions for automated AI agents, please read [AGENTS.md](file:///e:/work/other/dummy-md/AGENTS.md).
-
----
+The design is specified in [`ARCHITECTURE.md`](ARCHITECTURE.md); build status is tracked in
+[`work-plan.md`](work-plan.md); contributor rules are in [`AGENTS.md`](AGENTS.md).
 
 ## License
 
-This project is licensed under the MIT License - see the `LICENSE` file for details.
+MIT.

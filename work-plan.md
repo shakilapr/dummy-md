@@ -1,97 +1,103 @@
 # `dummy-md` — Implementation Work Plan
 
 Companion to [`ARCHITECTURE.md`](ARCHITECTURE.md). The design is fixed; this file tracks what is
-built. Feature ids refer to the machine-readable catalog in `src/dummy_md/core/catalog.py`.
+built and verified. Feature ids refer to the machine-readable catalog in
+`src/dummy_md/core/catalog.py`.
 
 Legend: `[x]` implemented and tested · `[ ]` planned · `[-]` deliberately out of scope for now.
+
+**Status:** 423 catalogued targets, 228 implemented (117 CommonMark, 151 GFM, 228 extended).
+194 tests, `mypy --strict` clean, `ruff` clean.
 
 ---
 
 ## Milestone map
 
-```mermaid
-flowchart LR
-    M0["M0: Foundations\nAST, errors, dialect + catalog"] --> M1["M1: Core rendering\nCommonMark + GFM emit, escaping"]
-    M1 --> M2["M2: Generation\ncontent engine, generators, planner"]
-    M2 --> M3["M3: Length control\nbudget ledger + fit loop"]
-    M3 --> M4["M4: Public surface\nAPI, presets, CLI, streaming"]
-    M4 --> M5["M5: Extended dialects\nmath, footnotes, callouts, diagrams"]
-```
-
-| Milestone | Exit criterion |
-| :-- | :-- |
-| M0 | Catalog validates; AST round-trips through `render`/`to_ast` equality |
-| M1 | Every P0 node renders; `markdown-it-py` parses output into expected token types |
-| M2 | `generate(length=...)` produces deterministic, structurally valid documents |
-| M3 | Exact `chars`/`words` achieved or `BudgetError` raised with a floor |
-| M4 | CLI generates, lists, validates; chunks concatenate to `generate()` |
-| M5 | Extended features gated by dialect, disabled elsewhere with `DialectError` |
+| Milestone | Exit criterion | Status |
+| :-- | :-- | :-- |
+| M0 Foundations | Catalog validates; AST traversal correct | done |
+| M1 Core rendering | Every P0 node renders; `markdown-it-py` parses output | done |
+| M2 Generation | `generate(length=...)` yields deterministic, valid documents | done |
+| M3 Length control | Exact `chars`/`words` hit or `BudgetError` raised | done |
+| M4 Public surface | API, presets, CLI, streaming | done |
+| M5 Extended dialects | Extended features gated by dialect | done for 6 families |
 
 ---
 
-## M0 — Foundations
+## M0 — Foundations `[x]`
 
-- [ ] `dummy_md.exceptions`: `DummyMdError`, `ConfigurationError`, `DialectError`, `BudgetError`,
+- [x] `exceptions`: `DummyMdError`, `ConfigurationError`, `DialectError`, `BudgetError`,
       `RenderError`.
-- [ ] `dummy_md.core.nodes`: immutable block/inline dataclasses, `Document`, visitors.
-- [ ] `dummy_md.core.features`: `FeatureSpec`, glob matching, capability resolution.
-- [ ] `dummy_md.core.catalog`: full research inventory as data, P0/P1 marked `implemented`.
-- [ ] `dummy_md.core.dialects`: `commonmark`, `gfm`, `extended`, `stress` capability sets.
-- [ ] `dummy_md.core.registry`: generator/payload/dialect/feature registration.
+- [x] `core.nodes`: immutable block/inline dataclasses, `Document`, traversal, text extraction.
+- [x] `core.features`: `FeatureSpec`, glob matching, capability resolution, requires closure.
+- [x] `core.catalog`: full research inventory as data, `implemented` flags.
+- [x] `core.dialects`: capability sets derived from the catalog.
+- [x] `core.registry`: generator/feature/payload/dialect registration with conflict checks.
 
-## M1 — Core rendering
+## M1 — Core rendering `[x]`
 
-- [ ] `dummy_md.renderers.base`: mode-aware escaping, fence and code-span delimiter selection,
-      block separation rules, capability guard.
-- [ ] `dummy_md.renderers.commonmark`: blocks, inlines, references, HTML, entities.
-- [ ] `dummy_md.renderers.gfm`: pipe tables, task lists, strikethrough, extended autolinks.
-- [ ] Round-trip tests for every P0 node.
+- [x] `renderers.base`: mode-aware escaping, fence and code-span delimiter selection, definition
+      rendering, capability guard.
+- [x] `renderers.commonmark`: all block and inline formatters.
+- [x] `renderers.gfm`: pipe tables with alignment-aware padding and caption support.
+- [x] Round-trip tests per node type; generated documents parse with `markdown-it-py`.
 
-## M2 — Generation
+## M2 — Generation `[x]`
 
-- [ ] `dummy_md.text`: `lorem`, `pseudowords`, `tokens`, `alphanumeric`, `numeric` providers and
-      the `DummyContentEngine` facade (`heading_phrase`, `sentence`, `paragraph`, `table_cell`,
-      `identifier`, `url`, `email`).
-- [ ] `dummy_md.elements`: headings, paragraphs, thematic breaks, lists, tables, code blocks,
-      quotes, links, images, HTML blocks.
-- [ ] `dummy_md.core.context`: RNG, depth, heading tracker, reference registry, budget ledger.
-- [ ] `dummy_md.core.planner`: constraint-first schedule, heading skeleton, variety bias.
-- [ ] `dummy_md.core.engine`: assemble `Document`, close references, enforce invariants.
+- [x] `text`: lorem, pseudowords, tokens, alphanumeric, exact-length filler; semantic engine.
+- [x] `elements`: headings, paragraphs, thematic breaks, lists, tables, code, links, images,
+      HTML, quotes, callouts, footnotes, math, diagrams, front matter (15 generators).
+- [x] `core.context`: RNG, depth, heading tracker, reference registry.
+- [x] `core.planner`: constraint-first schedule, heading skeleton, variety bias.
+- [x] `core.engine`: section assembly, trimming, fit, definition closure.
 
-## M3 — Length control
+## M3 — Length control `[x]`
 
-- [ ] Unit measurement (`chars`, `words`, `lines`, `blocks`, `bytes`).
-- [ ] Approximate mode with tolerance; exact mode with elastic-operation ladder.
-- [ ] `BudgetError` carrying requested vs. achievable floor.
-- [ ] Determinism tests across subprocesses with distinct `PYTHONHASHSEED`.
+- [x] Units: `chars`, `words`, `lines`, `blocks`, `bytes`.
+- [x] Approximate mode with tolerance; exact mode with elastic-operation ladder.
+- [x] `BudgetError` carries requested vs. achievable values.
+- [x] Determinism across subprocesses with different `PYTHONHASHSEED`.
 
-## M4 — Public surface
+## M4 — Public surface `[x]`
 
-- [ ] `dummy_md.config`: `DocumentSpec`, `ElementRule`, `LengthSpec`, validated.
-- [ ] `dummy_md.api`: `generate`, `iter_chunks`, `write`, `available_*`, `validate`.
-- [ ] `dummy_md.presets`: `default`, `minimal`, `readme`, `tables`, `stress`.
-- [ ] `dummy_md.cli`: `generate`, `elements`, `dialects`, `presets`, `validate`.
+- [x] `config`: `DocumentSpec`, `ElementRule`, `LengthSpec`, validated.
+- [x] `api`: `generate`, `iter_chunks`, `write`, `available_*`, `validate`.
+- [x] `presets`: `default`, `minimal`, `readme`, `tables`, `stress`.
+- [x] `cli`: `generate`, `elements`, `dialects`, `presets`, `validate`.
 
-## M5 — Extended features
+## M5 — Extended features `[x]`
 
-- [ ] Attributes on headings/code fences (`extended`).
-- [ ] Footnotes: reference + definition closure.
-- [ ] Math: inline/display delimiters, LaTeX payload families.
-- [ ] Callouts: GitHub alerts and Obsidian callout kinds.
-- [ ] Diagrams: Mermaid family fences.
-- [ ] Front matter: YAML, TOML, JSON.
-- [ ] Stress fixtures: escapes, Unicode scripts, CRLF, adjacent delimiters.
+- [x] Heading and code-fence attributes.
+- [x] Figure captions and image size attributes.
+- [x] Footnotes: reference plus definition closure, multiline bodies.
+- [x] Math: inline/display delimiters, LaTeX environments, payload families.
+- [x] Callouts: GitHub alerts and Obsidian kinds, foldable/nested variants.
+- [x] Diagrams: nine Mermaid diagram families as fenced blocks.
+- [x] Front matter: YAML, TOML, JSON with metadata schemas.
+- [ ] Stress fixtures: escapes, Unicode scripts, CRLF, adjacent delimiters (catalogued, not yet
+      selectable).
 
 ---
 
-## Out of scope (tracked as catalog entries only)
+## Next up
 
-- `[-]` MDX/JSX emission requires a JS-aware renderer; catalogued, not implemented.
-- `[-]` Grid tables with row/column spans: the pipe-table node cannot express them; needs a
-  dedicated node before it can be honest.
-- `[-]` Platform syntax that only one closed-source editor accepts (Obsidian properties,
-  GitLab-only macros) stays catalogued until a parser can verify it.
-- `[-]` Executable chunks (Quarto, MyST) emit content only; execution is never attempted.
+1. **Stress dialect features** — implement the 30 `stress.*` rows (escapes, Unicode scripts,
+   CRLF emission, deep nesting) and gate them to the `stress` dialect.
+2. **Grid tables** — needs a dedicated `GridTable` node; pipe tables cannot express spans.
+3. **Pandoc attribute coverage** — `link.attributes`, `math.label`, `math.crossref`.
+4. **Platform families** — Obsidian, GitLab, MyST, MkDocs, Quarto, Docusaurus. Each needs a
+   parser that can verify the output before it is marked implemented.
+5. **CLI streaming for byte targets** — `--size` currently streams through sections but does not
+   precompute section counts from bytes.
+
+---
+
+## Out of scope (catalogued only)
+
+- `[-]` MDX/JSX emission: needs a JS-aware renderer and JSX validation.
+- `[-]` Executable chunks (Quarto, MyST): content is generated, execution never attempted.
+- `[-]` Obsidian properties and GitLab-only macros: no parser to verify them.
+- `[-]` Citations and bibliography fixtures: require a multi-file corpus model.
 
 ---
 
@@ -99,8 +105,8 @@ flowchart LR
 
 | Risk | Impact | Mitigation |
 | :-- | :-- | :-- |
-| Length fit loop oscillates | High | Monotonic operation ladder; bounded iterations; `BudgetError` with diagnostics |
-| Escaping diverges by context | High | Single mode-aware escape function, table-driven per mode, golden tests |
-| Dialect claims outrun reality | High | `implemented` flag + capability guard + round-trip test per emitted feature |
-| Streaming splits a structure | Medium | Sections cut at top-level block boundaries only |
-| Seed drift across versions | Medium | No `hash()`, no float-from-RNG in ordering decisions, pinned algorithms |
+| Fit loop oscillation | High | Monotonic operation ladder, bounded steps, `BudgetError` diagnostics |
+| Escaping divergence by context | High | One mode-aware escape function, golden per-mode tests |
+| Dialect claims outrunning reality | High | `implemented` flag, capability guard, per-feature render/parse test |
+| Oversized structural blocks | Medium | Size-decayed list nesting, section trimming, structural floors |
+| Seed drift across versions | Medium | No `hash()`, stable random ordering, subprocess determinism tests |
