@@ -149,16 +149,16 @@ A tier is a roadmap label, not a runtime concept. Runtime gating is `dialect`.
 ```python
 @dataclass(frozen=True, slots=True)
 class FeatureSpec:
-    id: str                                  # "table.grid.rowspan"
-    family: str                              # "table"
-    kind: str                                # structure | syntax_variant | payload | ...
-    dialects: frozenset[str]                 # dialects that may emit it
-    tier: str                                # core | extended | platform | advanced
-    generator: str | None = None             # generator id, if it needs one
-    renderer: str | None = None              # renderer capability id
-    requires: frozenset[str] = frozenset()   # prerequisite feature ids
+    id: str  # "table.grid.rowspan"
+    family: str  # "table"
+    kind: str  # structure | syntax_variant | payload | ...
+    dialects: frozenset[str]  # dialects that may emit it
+    tier: str  # core | extended | platform | advanced
+    generator: str | None = None  # generator id, if it needs one
+    renderer: str | None = None  # renderer capability id
+    requires: frozenset[str] = frozenset()  # prerequisite feature ids
     default_weight: float = 1.0
-    implemented: bool = False                # honest status flag
+    implemented: bool = False  # honest status flag
     options: Mapping[str, object] = MappingProxyType({})
 ```
 
@@ -525,7 +525,9 @@ for a construct, never delimiters:
 class PayloadProvider(Protocol):
     payload_id: str
 
-    def render(self, context: GenerationContext, options: Mapping[str, object]) -> str: ...
+    def render(
+        self, context: GenerationContext, options: Mapping[str, object]
+    ) -> str: ...
 ```
 
 Payload bodies are templates with placeholders filled by the content engine
@@ -723,19 +725,24 @@ spec = DocumentSpec(
     length=LengthSpec(value=15_000, unit="chars", mode="approximate", tolerance=0.03),
     include=["heading.*", "paragraph.*", "table.*", "code.*", "list.*"],
     elements={
-        "heading": ElementRule(min_count=3, max_count=10, weight=3,
-                               options=HeadingOptions(levels=(1, 2, 3), style="atx")),
+        "heading": ElementRule(
+            min_count=3,
+            max_count=10,
+            weight=3,
+            options=HeadingOptions(levels=(1, 2, 3), style="atx"),
+        ),
         "paragraph": ElementRule(weight=10),
-        "table": ElementRule(min_count=2, weight=4,
-                             options=TableOptions(min_rows=4, max_rows=8)),
+        "table": ElementRule(
+            min_count=2, weight=4, options=TableOptions(min_rows=4, max_rows=8)
+        ),
     },
     text_style="pseudowords",
     max_nesting_depth=3,
 )
 
 generator = Generator(spec)
-generator.generate()           # str
-generator.to_ast()             # Document
+generator.generate()  # str
+generator.to_ast()  # Document
 generator.write("fixture.md")  # Path
 ```
 
