@@ -781,6 +781,11 @@ for chunk in dummy_md.iter_chunks(length=50_000, unit="words", dialect="gfm", se
 dummy_md.write("fixture.md", length=10_000, dialect="extended", seed=7)
 ```
 
+Every functional call accepts the same customization keywords: `text_seed`, `exclude`,
+`elements`, `feature_weights`, `text_style`, `max_nesting_depth`, `mode`, `tolerance`,
+`preset`, `heading_skeleton`, `include_frontmatter`, `line_ending`, `trailing_newline`,
+`section_chars`, `fill_ratio`, and `registry`.
+
 ### 13.2 Specification layer
 
 ```python
@@ -827,6 +832,13 @@ generator.write("fixture.md")  # Path
 | `dummy_md.available_elements(dialect=None)` | `tuple[str, ...]` | Implemented feature ids |
 | `dummy_md.available_dialects()` | `tuple[str, ...]` | Registered dialects |
 | `dummy_md.available_presets()` | `Mapping[str, str]` | Name → description |
+| `dummy_md.register_text_style(name, provider)` | `None` | Add a word source |
+| `dummy_md.text_styles()` | `tuple[str, ...]` | Registered text styles |
+| `dummy_md.register_preset(preset)` | `None` | Add a named preset |
+| `Registry.add_dialect(name, base=..., add=..., remove=...)` | `Dialect` | Derive a dialect |
+| `Registry.register_renderer(name, type)` | `None` | Add a renderer plug-in |
+| `DocumentSpec.to_json(path=None)` | `str` | Serialize a run |
+| `DocumentSpec.from_json(text)` / `.from_json_file(path)` | `DocumentSpec` | Restore a run |
 | `dummy_md.validate(text, dialect)` | `ValidationReport` | Optional parser verification (requires `[dev]` extra) |
 
 ---
