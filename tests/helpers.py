@@ -25,6 +25,7 @@ def build_context(
     seed: int = 0,
     include: tuple[str, ...] = (),
     options: Mapping[str, ElementRule] | None = None,
+    feature_weights: Mapping[str, float] | None = None,
     max_depth: int = 3,
     text_style: str = "pseudowords",
 ) -> GenerationContext:
@@ -33,10 +34,11 @@ def build_context(
     return GenerationContext(
         rng=rng,
         dialect=get_dialect(dialect),
-        text=DummyContentEngine(rng, TEXT_PROVIDERS[text_style]),
+        text=DummyContentEngine(Random(seed + 1), TEXT_PROVIDERS[text_style]),
         active_features=selected,
         budget=BudgetTracker(unit="chars", target=10_000),
         options=options or {},
+        feature_weights=feature_weights or {},
         max_depth=max_depth,
     )
 
