@@ -152,7 +152,7 @@ class Generator:
         renderer: BaseRenderer,
     ) -> Document:
         blocks = planner.skeleton(section_index=index)
-        estimate = sum(self._block_size(block, renderer) + 2 for block in blocks)
+        estimate = sum(self._block_measure(block, renderer) for block in blocks)
         while planner.can_continue():
             if estimate >= target * _FILL_TARGET and not planner.remaining_minimum():
                 break
@@ -160,13 +160,25 @@ class Generator:
             if block is None:
                 break
             blocks.append(block)
-            estimate += self._block_size(block, renderer) + 2
+            estimate += self._block_measure(block, renderer)
         blocks = self._trim(blocks, planner, target, renderer)
         return Document(
             children=tuple(blocks),
             link_definitions=tuple(context.refs.links.values()),
             footnote_definitions=tuple(context.refs.footnotes.values()),
         )
+
+    def _block_measure(self, block: BlockNode, renderer: BaseRenderer) -> int:
+        unit = self.spec.length.unit
+        if unit == "blocks":
+            return 1
+        document = Document(children=(block,))
+        text = renderer.render(document)
+        if unit == "words":
+            return measure(document, text, "words")
+        if unit == "lines":
+            return measure_text(text, "lines") + 1
+        return len(text) + 1
 
     def _trim(
         self,
@@ -181,22 +193,22 @@ class Generator:
             for family in planner.families
             if planner.rule(family).min_count
         }
-        if not minimums:
-            return blocks
         counts: dict[str, int] = dict.fromkeys(minimums, 0)
         families = [self._family_of(block) for block in blocks]
         for family in families:
             if family in counts:
                 counts[family] += 1
-        size = sum(self._block_size(block, renderer) + 2 for block in blocks)
+        size = sum(self._block_measure(block, renderer) for block in blocks)
         index = len(blocks) - 1
-        while size > target and index >= 0:
+        floor = int(target * 0.75)
+        while size > target and index >= 0 and size - floor > 0:
             family = families[index]
             minimum = minimums.get(family, 0)
-            if family in counts and counts[family] <= minimum:
+            measure = self._block_measure(blocks[index], renderer)
+            if measure == 0 or (family in counts and counts[family] <= minimum):
                 index -= 1
                 continue
-            size -= self._block_size(blocks[index], renderer) + 2
+            size -= measure
             if family in counts:
                 counts[family] -= 1
             del blocks[index]
@@ -253,7 +265,3 @@ class Generator:
             max(0, planner.rule(family).min_count) for family in planner.families
         )
         return max(1, min(block_count, minimum + 1))
-
-    @staticmethod
-    def _block_size(block: BlockNode, renderer: BaseRenderer) -> int:
-        return len(renderer.render(Document(children=(block,))))

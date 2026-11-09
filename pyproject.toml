@@ -80,3 +80,6 @@ warn_unused_configs = true
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-ra -q --strict-markers"
+markers = [
+    "slow: subprocess or large-document checks that take noticeable time",
+]

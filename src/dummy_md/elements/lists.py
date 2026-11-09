@@ -13,10 +13,10 @@ from dummy_md.core.nodes import (
     InlineNode,
     ListBlock,
     ListItem,
+    Paragraph,
     Text,
 )
 from dummy_md.elements._util import resolve_options
-from dummy_md.elements.paragraphs import ParagraphGenerator
 
 
 @dataclass(frozen=True, slots=True)
@@ -35,12 +35,16 @@ class ListOptions:
 class ListGenerator:
     family = "list"
 
-    def __init__(self, paragraphs: ParagraphGenerator | None = None) -> None:
-        self._paragraphs = paragraphs or ParagraphGenerator()
-
     def generate(self, context: GenerationContext) -> BlockNode:
         options = resolve_options(context, self.family, ListOptions(), ListOptions)
         return self._build(context, options, depth=0)
+
+    def _item_paragraph(self, context: GenerationContext) -> Paragraph:
+        sentences = context.rng.randint(1, 3)
+        text = " ".join(
+            context.text.sentence(min_words=4, max_words=10) for _ in range(sentences)
+        )
+        return Paragraph(children=(Text(text),))
 
     # -- construction -----------------------------------------------------
     def _build(
@@ -48,7 +52,8 @@ class ListGenerator:
     ) -> ListBlock:
         ordered = self._ordered(context, options)
         items: list[ListItem] = []
-        count = context.rng.randint(options.min_items, options.max_items)
+        ceiling = max(options.min_items, options.max_items - depth * 2)
+        count = context.rng.randint(options.min_items, ceiling)
         for _ in range(count):
             items.append(self._item(context, options, depth=depth, ordered=ordered))
         tight = self._tight(context, options, items)
@@ -68,13 +73,13 @@ class ListGenerator:
         depth: int,
         ordered: bool,
     ) -> ListItem:
-        children: list[BlockNode] = [self._paragraphs.generate(context)]
+        children: list[BlockNode] = [self._item_paragraph(context)]
 
         if (
             context.supports("list.item.multiple_paragraphs")
             and context.rng.random() < options.multi_paragraph_ratio
         ):
-            children.append(self._paragraphs.generate(context))
+            children.append(self._item_paragraph(context))
 
         if (
             context.supports("list.item.heading")
@@ -102,14 +107,14 @@ class ListGenerator:
             context.supports("list.item.blockquote")
             and context.rng.random() < options.extra_block_ratio
         ):
-            children.append(Blockquote(children=(self._paragraphs.generate(context),)))
+            children.append(Blockquote(children=(self._item_paragraph(context),)))
 
         if (
             depth + 1 < options.max_depth
             and context.depth + 1 < context.max_depth
             and context.can_nest
             and self._nested_available(context)
-            and context.rng.random() < options.nested_ratio
+            and context.rng.random() < options.nested_ratio * (0.6**depth)
         ):
             children.append(self._nested(context, options, depth=depth + 1))
 

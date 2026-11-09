@@ -28,7 +28,7 @@ def build_generators() -> dict[str, ElementGenerator]:
         HeadingGenerator(),
         paragraphs,
         ThematicBreakGenerator(),
-        ListGenerator(paragraphs),
+        ListGenerator(),
         tables,
         CodeBlockGenerator(),
         LinkGenerator(),
