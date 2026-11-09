@@ -7,7 +7,7 @@ built and verified. Feature ids refer to the machine-readable catalog in
 Legend: `[x]` implemented and tested · `[ ]` planned · `[-]` deliberately out of scope for now.
 
 **Status:** 423 catalogued targets, 297 implemented (129 CommonMark, 163 GFM, 297 extended).
-380 tests, `mypy --strict` clean, `ruff` clean.
+410 tests, `mypy --strict` clean, `ruff` clean.
 
 ---
 
@@ -96,6 +96,7 @@ Legend: `[x]` implemented and tested · `[ ]` planned · `[-]` deliberately out 
 - [x] CLI flags for every knob: `--option`, `--element-weight`, `--min-count`,
       `--feature-weight`, `--line-ending`, `--no-heading-skeleton`, `--no-frontmatter`.
 - [x] 76 customization tests covering every seam, every option family and CLI flag errors.
+- [x] Option dataclasses reject out-of-range counts and ratios at construction.
 - [x] 22 fidelity tests proving implemented features reach rendered output.
 - [x] 19 Pandoc-backed tests asserting the AST node a real parser produces.
 
