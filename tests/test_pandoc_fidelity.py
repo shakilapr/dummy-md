@@ -19,6 +19,7 @@ from dummy_md.core.context import GenerationContext
 from dummy_md.elements import (
     ListOptions,
     ParagraphOptions,
+    QuoteOptions,
     TableOptions,
 )
 from dummy_md.renderers import get_renderer
@@ -141,6 +142,19 @@ def test_line_block_is_parsed_as_line_block() -> None:
     assert block_types(pandoc_ast(text)) == ["LineBlock"]
 
 
+def test_lazy_blockquote_parses_as_blockquote() -> None:
+    context = build_context(
+        dialect="commonmark",
+        include=("blockquote.lazy",),
+        options={"blockquote": ElementRule(options=QuoteOptions(lazy_ratio=1.0))},
+        seed=2,
+    )
+    block = REGISTRY.generator("blockquote").generate(context)
+    text = get_renderer(context.dialect).render(document_of(block))
+    ast = pandoc_ast(text)
+    assert block_types(ast) == ["BlockQuote"]
+
+
 @pytest.mark.parametrize("style", ["simple", "multiline"])
 def test_pandoc_tables_parse_as_tables(style: str) -> None:
     text = render(
@@ -261,6 +275,7 @@ def test_figure_with_size_keeps_a_single_attribute_block() -> None:
     assert text.count("{") == 1, "size and label attributes must share one block"
     assert "}{" not in text
     assert "#fig:" in text and "width=" in text
+    assert block_types(pandoc_ast(text)) == ["Figure"]
 
 
 def test_math_label_survives_into_math_content() -> None:

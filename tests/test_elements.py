@@ -548,6 +548,7 @@ def test_every_implemented_feature_generates_and_parses() -> None:
             block = REGISTRY.generator(spec.generator).generate(context)
             document = document_of(block)
             text = get_renderer(context.dialect).render(document)
+            assert text.strip()
             PARSER.parse(text)
         except Exception as error:  # noqa: BLE001 - report, do not stop
             failures.append(f"{feature_id}: {type(error).__name__}: {error}")
