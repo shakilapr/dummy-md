@@ -96,7 +96,7 @@ def test_unknown_pattern_errors() -> None:
 
 def test_unimplemented_pattern_errors() -> None:
     with pytest.raises(ConfigurationError, match="unimplemented"):
-        resolve(FEATURES, dialect="extended", include=["table.grid.colspan"])
+        resolve(FEATURES, dialect="stress", include=["stress.document.large"])
 
 
 def test_exclude_wins_over_include() -> None:

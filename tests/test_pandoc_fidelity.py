@@ -334,3 +334,31 @@ def test_generated_extended_document_has_no_malformed_blocks() -> None:
         "RawBlock",
         "Plain",
     }
+
+
+def test_grid_table_is_parsed_as_table() -> None:
+    text = render(
+        "table",
+        ("table.grid",),
+        {"table": ElementRule(options=TableOptions(min_rows=2, max_rows=3))},
+    )
+    assert block_types(pandoc_ast(text)) == ["Table"]
+
+
+def test_grid_span_table_still_parses() -> None:
+    text = render(
+        "table",
+        ("table.grid.colspan", "table.grid.rowspan"),
+        {"table": ElementRule(options=TableOptions(min_rows=3, max_rows=4))},
+    )
+    assert block_types(pandoc_ast(text)) == ["Table"]
+
+
+def test_citation_is_parsed_as_cite() -> None:
+    text = render("citation", ("citation.bracketed",))
+    assert "Cite" in inline_types(pandoc_ast(text))
+
+
+def test_narrative_citation_is_parsed_as_cite() -> None:
+    text = render("citation", ("citation.narrative",))
+    assert "Cite" in inline_types(pandoc_ast(text))

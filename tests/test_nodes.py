@@ -120,5 +120,5 @@ def test_list_style_validation() -> None:
 
 def test_table_style_validation() -> None:
     with pytest.raises(ValueError, match="unknown table style"):
-        Table(style="grid")  # type: ignore[arg-type]
-    assert Table(style="simple").style == "simple"
+        Table(style="fancy")  # type: ignore[arg-type]
+    assert Table(style="grid").style == "grid"

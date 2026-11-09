@@ -97,7 +97,7 @@ def test_custom_dialect_rejects_unknown_or_unimplemented() -> None:
     with pytest.raises(ConfigurationError, match="unknown feature"):
         registry.add_dialect("bad", add=["nope.feature"])
     with pytest.raises(ConfigurationError, match="unimplemented"):
-        registry.add_dialect("bad", add=["table.grid"])
+        registry.add_dialect("bad", add=["stress.document.large"])
 
 
 def test_custom_dialect_rejects_removing_missing_feature() -> None:

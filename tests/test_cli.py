@@ -71,7 +71,8 @@ def test_elements_all_marks_planned(capsys: pytest.CaptureFixture[str]) -> None:
     exit_code = main(["elements", "--all"])
     captured = capsys.readouterr()
     assert exit_code == 0
-    assert "table.grid  (planned)" in captured.out
+    assert "stress.document.large  (planned)" in captured.out
+    assert "table.grid  (planned)" not in captured.out
 
 
 def test_dialects_and_presets(capsys: pytest.CaptureFixture[str]) -> None:
