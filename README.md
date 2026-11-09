@@ -198,7 +198,9 @@ spec = DocumentSpec(
         "table": ElementRule(
             options=TableOptions(min_rows=3, max_rows=8, min_columns=2, max_columns=5)
         ),
-        "code": ElementRule(options=CodeOptions(indented_ratio=0.0, long_fence_ratio=0.3)),
+        "code": ElementRule(
+            options=CodeOptions(indented_ratio=0.0, long_fence_ratio=0.3)
+        ),
         "math": ElementRule(options=MathOptions(delimiter="dollar")),
     },
 )
@@ -270,7 +272,7 @@ dummy_md.generate(length=1200, text_style="words")
 from dummy_md import DocumentSpec
 
 spec = DocumentSpec(seed=5, include=("table.*",), length=dummy_md.LengthSpec(2000))
-spec.to_json("fixture-spec.json")          # also returns the JSON text
+spec.to_json("fixture-spec.json")  # also returns the JSON text
 same = DocumentSpec.from_json_file("fixture-spec.json")
 assert same.to_dict() == spec.to_dict()
 ```
@@ -286,7 +288,9 @@ dummy-md generate --spec spec.json
 dummy-md generate --chars 10000 --dialect gfm --seed 42
 dummy-md generate --words 2500 --preset tables -o tables.md
 dummy-md generate --bytes 2MB --exclude "html.*" --seed 1337
-dummy-md generate --chars 4000 --feature-weight "list.task=3" --line-ending crlf
+dummy-md generate --chars 4000 --feature-weight "list.task.checked=3" --line-ending crlf
+dummy-md generate --chars 6000 --option heading.style=setext --element-weight table=3
+dummy-md generate --chars 6000 --min-count paragraph=4 --no-heading-skeleton --no-frontmatter
 dummy-md spec --chars 5000 --seed 42 > spec.json
 dummy-md generate --spec spec.json -o fixture.md
 dummy-md elements --dialect extended

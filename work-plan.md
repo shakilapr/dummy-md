@@ -7,7 +7,7 @@ built and verified. Feature ids refer to the machine-readable catalog in
 Legend: `[x]` implemented and tested · `[ ]` planned · `[-]` deliberately out of scope for now.
 
 **Status:** 423 catalogued targets, 228 implemented (117 CommonMark, 151 GFM, 228 extended).
-264 tests, `mypy --strict` clean, `ruff` clean.
+270 tests, `mypy --strict` clean, `ruff` clean.
 
 ---
 
@@ -91,7 +91,9 @@ Legend: `[x]` implemented and tested · `[ ]` planned · `[-]` deliberately out 
       `text_seed`, `max_nesting_depth`, `heading_skeleton`, `include_frontmatter`.
 - [x] JSON specs: `DocumentSpec.to_json` / `from_json` / `from_json_file`, CLI `spec` and
       `--spec`.
-- [x] 70 customization tests covering every seam and every option family.
+- [x] CLI flags for every knob: `--option`, `--element-weight`, `--min-count`,
+      `--feature-weight`, `--line-ending`, `--no-heading-skeleton`, `--no-frontmatter`.
+- [x] 76 customization tests covering every seam, every option family and CLI flag errors.
 
 ---
 
