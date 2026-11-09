@@ -8,7 +8,7 @@ from types import MappingProxyType
 
 from dummy_md.core.budget import Mode, Unit
 from dummy_md.core.dialects import DIALECTS
-from dummy_md.exceptions import ConfigurationError
+from dummy_md.exceptions import ConfigurationError, DialectError
 from dummy_md.text import TEXT_PROVIDERS
 
 
@@ -69,7 +69,9 @@ class DocumentSpec:
 
     def __post_init__(self) -> None:
         if self.dialect not in DIALECTS:
-            raise ConfigurationError(f"unknown dialect {self.dialect!r}")
+            raise DialectError(
+                f"unknown dialect {self.dialect!r}", dialects=sorted(DIALECTS)
+            )
         if self.text_style not in TEXT_PROVIDERS:
             raise ConfigurationError(
                 f"unknown text style {self.text_style!r}; "
