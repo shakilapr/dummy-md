@@ -33,7 +33,11 @@ class HeadingGenerator:
         )
         levels = self._levels(context, options)
         desired = context.rng.choice(levels)
-        level = context.headings.next_level(desired, allow_skips=options.allow_skips)
+        level = context.headings.next_level(
+            desired,
+            allow_skips=options.allow_skips
+            or context.supports("heading.levels.skipped"),
+        )
         level = min(level, 6)
 
         text = context.text.heading_phrase(level)
