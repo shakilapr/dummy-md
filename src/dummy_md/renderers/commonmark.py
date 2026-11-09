@@ -406,11 +406,27 @@ class CommonMarkRenderer(BaseRenderer):
             self.require("image.figure.caption", "figure captions")
         if node.label:
             self.require("image.figure.label", "figure labels")
-        image = self.render_block(Paragraph(children=(node.image,)))
+        alt = self._inline_sequence(
+            (Text(node.caption),) if node.caption else node.image.alt, "image_alt"
+        )
+        target = format_destination(
+            node.image.destination,
+            title=node.image.title,
+            title_delimiter=node.image.title_delimiter,
+        )
+        attributes: list[str] = []
+        if node.image.width is not None:
+            self.require("image.width", "image width attributes")
+            attributes.append(f"width={node.image.width}")
+        if node.image.height is not None:
+            self.require("image.height", "image height attributes")
+            attributes.append(f"height={node.image.height}")
         if node.label:
-            image = f"{image}{{{'#' + node.label}}}"
-        caption = self.render_block(Paragraph(children=(Text(node.caption),)))
-        return f"{image}\n\n{caption}" if node.caption else image
+            attributes.append("#" + node.label)
+        rendered = f"![{alt}]({target})"
+        if attributes:
+            rendered += "{" + " ".join(attributes) + "}"
+        return rendered
 
     def _line_block(self, node: LineBlock) -> str:
         self.require("paragraph.line_block", "line blocks")
@@ -422,9 +438,17 @@ class CommonMarkRenderer(BaseRenderer):
 
     def _fenced_div(self, node: FencedDiv) -> str:
         self.require("paragraph.fenced_div", "fenced divs")
-        header = ":::" + (f" {node.info}" if node.info else "")
-        if node.attributes and not node.attributes.is_empty():
-            header += " " + self._attribute_string(node.attributes)
+        attributes = node.attributes
+        if node.info:
+            classes = tuple(attributes.classes) if attributes else ()
+            attributes = Attributes(
+                identifier=attributes.identifier if attributes else None,
+                classes=(node.info, *(name for name in classes if name != node.info)),
+                pairs=attributes.pairs if attributes else (),
+            )
+        header = ":::" + (
+            " " + self._attribute_string(attributes) if attributes else ""
+        )
         body = self.render_blocks(node.children)
         return f"{header}\n{body}\n:::" if body else f"{header}\n:::"
 
