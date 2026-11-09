@@ -7,6 +7,8 @@ can actually emit it, and a test exercises every implemented feature end to end.
 
 from __future__ import annotations
 
+from dataclasses import replace
+
 from dummy_md.core.features import FeatureSpec
 
 # Dialect sets. CommonMark is the base every dialect speaks.
@@ -665,6 +667,125 @@ CATALOG: tuple[FeatureSpec, ...] = (
     ),
     F("stress.nesting.deep", "stress", S, "advanced", generator="list"),
     F("stress.document.large", "stress", S, "advanced", implicit=True),
+)
+
+# Features implemented after the initial catalog commit. Keeping the promotion in
+# one place makes the honesty flag auditable while the entries above stay a plain
+# transcription of the research inventory.
+_IMPLEMENTED_NOW: frozenset[str] = frozenset(
+    {
+        # inline typography and revision markup
+        "inline.superscript",
+        "inline.subscript",
+        "inline.underline",
+        "inline.highlight",
+        "inline.insert",
+        "inline.critic.deletion",
+        "inline.critic.insertion",
+        "inline.critic.replacement",
+        "inline.critic.highlight",
+        "inline.critic.comment",
+        "inline.emoji.shortcode",
+        "inline.abbreviation.definition",
+        "inline.abbreviation.reference",
+        "inline.small_caps",
+        # block containers
+        "paragraph.line_block",
+        "paragraph.fenced_div",
+        "theorem.block",
+        # lists
+        "list.ordered.alpha",
+        "list.ordered.roman",
+        "list.definition",
+        "list.example_numbered",
+        # links and images
+        "link.attributes",
+        "link.wiki.basic",
+        "link.wiki.alias",
+        "link.wiki.heading",
+        "link.wiki.block",
+        "image.figure.label",
+        # tables
+        "table.simple",
+        "table.multiline",
+        # math
+        "math.label",
+        "math.crossref",
+        "math.macros",
+        # raw HTML additions
+        "html.svg.inline",
+        "html.img",
+        "html.picture",
+        "html.audio",
+        "html.video",
+        "html.iframe",
+        "html.colgroup",
+        "html.thead",
+        "html.tbody",
+        "html.tfoot",
+        "html.table.rowspan",
+        "html.table.colspan",
+        "html.parsed_markdown",
+        # diagram engines and Mermaid families
+        "diagram.mermaid.swimlane",
+        "diagram.mermaid.journey",
+        "diagram.mermaid.quadrant",
+        "diagram.mermaid.requirement",
+        "diagram.mermaid.c4",
+        "diagram.mermaid.mindmap",
+        "diagram.mermaid.timeline",
+        "diagram.mermaid.zenuml",
+        "diagram.mermaid.sankey",
+        "diagram.mermaid.xy",
+        "diagram.mermaid.block",
+        "diagram.mermaid.packet",
+        "diagram.mermaid.kanban",
+        "diagram.mermaid.architecture",
+        "diagram.mermaid.radar",
+        "diagram.mermaid.eventmodeling",
+        "diagram.mermaid.treemap",
+        "diagram.mermaid.venn",
+        "diagram.mermaid.ishikawa",
+        "diagram.mermaid.wardley",
+        "diagram.mermaid.treeview",
+        "diagram.graphviz",
+        "diagram.plantuml",
+        "diagram.d2",
+    }
+)
+
+_GENERATOR_OVERRIDES: dict[str, str] = {
+    "theorem.block": "paragraph",
+    "math.crossref": "paragraph",
+    "link.wiki.basic": "link",
+    "link.wiki.alias": "link",
+    "link.wiki.heading": "link",
+    "link.wiki.block": "link",
+    "inline.superscript": "paragraph",
+    "inline.subscript": "paragraph",
+    "inline.underline": "paragraph",
+    "inline.highlight": "paragraph",
+    "inline.insert": "paragraph",
+    "inline.critic.deletion": "paragraph",
+    "inline.critic.insertion": "paragraph",
+    "inline.critic.replacement": "paragraph",
+    "inline.critic.highlight": "paragraph",
+    "inline.critic.comment": "paragraph",
+    "inline.emoji.shortcode": "paragraph",
+    "inline.abbreviation.definition": "paragraph",
+    "inline.abbreviation.reference": "paragraph",
+    "inline.small_caps": "paragraph",
+}
+
+CATALOG = tuple(
+    replace(
+        spec,
+        implemented=True,
+        generator=_GENERATOR_OVERRIDES.get(spec.id, spec.generator),
+    )
+    if spec.id in _IMPLEMENTED_NOW
+    else spec
+    for spec in CATALOG
 )
 
 CATALOG_BY_ID: dict[str, FeatureSpec] = {spec.id: spec for spec in CATALOG}
