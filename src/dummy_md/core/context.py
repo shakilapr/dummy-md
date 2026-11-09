@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field, replace
 from random import Random
 from typing import TYPE_CHECKING
@@ -81,6 +81,7 @@ class GenerationContext:
     active_features: frozenset[str]
     budget: BudgetTracker
     options: Mapping[str, ElementRule] = field(default_factory=dict)
+    feature_weights: Mapping[str, float] = field(default_factory=dict)
     depth: int = 0
     max_depth: int = 3
     headings: HeadingTracker = field(default_factory=HeadingTracker)
@@ -102,6 +103,23 @@ class GenerationContext:
                 if feature.startswith(prefix)
             )
         )
+
+    def feature_weight(self, feature_id: str) -> float:
+        return self.feature_weights.get(feature_id, 1.0)
+
+    def weighted_feature(self, candidates: Sequence[str]) -> str:
+        """Pick one feature id, favouring higher configured weights."""
+        if not candidates:
+            raise ValueError("cannot choose from an empty feature list")
+        weights = [self.feature_weight(candidate) for candidate in candidates]
+        total = sum(weights)
+        threshold = self.rng.random() * total
+        cumulative = 0.0
+        for candidate, weight in zip(candidates, weights, strict=True):
+            cumulative += weight
+            if threshold < cumulative:
+                return candidate
+        return candidates[-1]
 
     @property
     def can_nest(self) -> bool:

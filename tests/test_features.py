@@ -3,13 +3,14 @@ from __future__ import annotations
 import pytest
 
 from dummy_md.core.catalog import CATALOG, IMPLEMENTED_IDS
-from dummy_md.core.dialects import DIALECTS, dialects_for, get_dialect
+from dummy_md.core.dialects import DIALECTS, Dialect, dialects_for, get_dialect
 from dummy_md.core.features import (
     KINDS,
     TIERS,
     FeatureSpec,
     group_by_generator,
     resolve,
+    resolve_for,
     validate_catalog,
 )
 from dummy_md.core.registry import Registry
@@ -106,6 +107,16 @@ def test_exclude_wins_over_include() -> None:
     assert "heading.setext.h1" not in selected
 
 
+def _extended_with(*extra: str) -> Dialect:
+    base = get_dialect("extended")
+    return Dialect(
+        name="probe",
+        renderer=base.renderer,
+        features=frozenset(set(base.features) | set(extra)),
+        base=base.name,
+    )
+
+
 def test_requires_closure_is_pulled_in() -> None:
     features = dict(FEATURES)
     features["table.grid.colspan"] = FeatureSpec(
@@ -127,7 +138,8 @@ def test_requires_closure_is_pulled_in() -> None:
         generator="table",
         implemented=True,
     )
-    selected = resolve(features, dialect="extended", include=["table.grid.colspan"])
+    dialect = _extended_with("table.grid", "table.grid.colspan")
+    selected = resolve_for(features, dialect=dialect, include=["table.grid.colspan"])
     assert selected == {"table.grid", "table.grid.colspan"}
 
 
@@ -152,10 +164,11 @@ def test_requires_with_excluded_prerequisite_errors() -> None:
         requires=frozenset({"table.grid"}),
         implemented=True,
     )
+    dialect = _extended_with("table.grid", "table.grid.rowspan")
     with pytest.raises(ConfigurationError, match="requires"):
-        resolve(
+        resolve_for(
             features,
-            dialect="extended",
+            dialect=dialect,
             include=["table.grid.rowspan"],
             exclude=["table.grid"],
         )

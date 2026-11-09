@@ -7,8 +7,12 @@ import re
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
 from types import MappingProxyType
+from typing import TYPE_CHECKING
 
 from dummy_md.exceptions import ConfigurationError, DialectError
+
+if TYPE_CHECKING:
+    from dummy_md.core.dialects import Dialect
 
 DIALECT_ORDER: tuple[str, ...] = ("commonmark", "gfm", "extended", "stress")
 KINDS: frozenset[str] = frozenset(
@@ -78,7 +82,8 @@ def _expand(
     features: Mapping[str, FeatureSpec],
     pattern: str,
     *,
-    dialect: str,
+    legal: frozenset[str],
+    dialect_name: str,
     role: str,
 ) -> list[FeatureSpec]:
     matched = sorted(
@@ -99,19 +104,21 @@ def _expand(
 
     is_glob = any(character in pattern for character in "*?[")
     if is_glob:
-        # Dialect filtering is expected for globs: `table.*` keeps what GFM can emit.
-        legal = [spec for spec in implemented if dialect in spec.dialects]
-        if not legal:
+        # Capability filtering is expected for globs: `table.*` keeps what the
+        # dialect can emit.
+        selected = [spec for spec in implemented if spec.id in legal]
+        if not selected:
             raise DialectError(
-                f"{role} pattern {pattern!r} has no feature available in {dialect!r}",
+                f"{role} pattern {pattern!r} has no feature available "
+                f"in {dialect_name!r}",
                 dialects=_dialects_of(implemented),
             )
-        return legal
+        return selected
 
     spec = implemented[0]
-    if dialect not in spec.dialects:
+    if spec.id not in legal:
         raise DialectError(
-            f"feature {spec.id!r} is not available in dialect {dialect!r}",
+            f"feature {spec.id!r} is not available in dialect {dialect_name!r}",
             dialects=_dialects_of((spec,)),
         )
     return [spec]
@@ -124,21 +131,21 @@ def _dialects_of(specs: Iterable[FeatureSpec]) -> tuple[str, ...]:
     return tuple(name for name in DIALECT_ORDER if name in names)
 
 
-def resolve(
+def resolve_for(
     features: Mapping[str, FeatureSpec],
     *,
-    dialect: str,
+    dialect: Dialect,
     include: Sequence[str] = (),
     exclude: Sequence[str] = (),
 ) -> frozenset[str]:
-    """Resolve include/exclude patterns into a legal feature set for ``dialect``."""
-    if dialect not in DIALECT_ORDER:
-        raise DialectError(f"unknown dialect {dialect!r}", dialects=DIALECT_ORDER)
+    """Resolve patterns against an explicit capability set.
 
+    ``dialect.features`` is authoritative, so user-registered dialects can add
+    or remove capabilities without editing the catalog.
+    """
+    legal = frozenset(dialect.features)
     available = {
-        spec.id
-        for spec in features.values()
-        if spec.implemented and dialect in spec.dialects
+        spec.id for spec in features.values() if spec.implemented and spec.id in legal
     }
 
     if include:
@@ -146,7 +153,13 @@ def resolve(
         for pattern in include:
             selected |= {
                 spec.id
-                for spec in _expand(features, pattern, dialect=dialect, role="include")
+                for spec in _expand(
+                    features,
+                    pattern,
+                    legal=legal,
+                    dialect_name=dialect.name,
+                    role="include",
+                )
             }
     else:
         selected = set(available)
@@ -155,7 +168,13 @@ def resolve(
     for pattern in exclude:
         excluded |= {
             spec.id
-            for spec in _expand(features, pattern, dialect=dialect, role="exclude")
+            for spec in _expand(
+                features,
+                pattern,
+                legal=legal,
+                dialect_name=dialect.name,
+                role="exclude",
+            )
         }
 
     selected -= excluded
@@ -165,9 +184,9 @@ def resolve(
     while pending:
         current = pending.pop()
         spec = features[current]
-        if dialect not in spec.dialects:
+        if current not in legal:
             raise DialectError(
-                f"feature {current!r} is not available in dialect {dialect!r}",
+                f"feature {current!r} is not available in dialect {dialect.name!r}",
                 dialects=_dialects_of((spec,)),
             )
         for required in sorted(spec.requires):
@@ -184,6 +203,12 @@ def resolve(
                 raise ConfigurationError(
                     f"feature {current!r} requires unimplemented feature {required!r}"
                 )
+            if required not in legal:
+                raise DialectError(
+                    f"feature {current!r} requires {required!r}, which is not "
+                    f"available in dialect {dialect.name!r}",
+                    dialects=_dialects_of((required_spec,)),
+                )
             if required not in selected:
                 selected.add(required)
                 pending.append(required)
@@ -192,6 +217,22 @@ def resolve(
         raise ConfigurationError("feature selection resolved to an empty set")
 
     return frozenset(selected)
+
+
+def resolve(
+    features: Mapping[str, FeatureSpec],
+    *,
+    dialect: str,
+    include: Sequence[str] = (),
+    exclude: Sequence[str] = (),
+) -> frozenset[str]:
+    """Resolve include/exclude patterns for a built-in dialect name."""
+    from dummy_md.core.dialects import DIALECTS
+
+    resolved = DIALECTS.get(dialect)
+    if resolved is None:
+        raise DialectError(f"unknown dialect {dialect!r}", dialects=DIALECT_ORDER)
+    return resolve_for(features, dialect=resolved, include=include, exclude=exclude)
 
 
 def validate_catalog(features: Mapping[str, FeatureSpec]) -> None:

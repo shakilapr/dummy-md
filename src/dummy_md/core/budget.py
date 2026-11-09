@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass, replace
 from typing import TYPE_CHECKING, Literal
 
@@ -29,11 +30,15 @@ UNITS: tuple[str, ...] = ("chars", "words", "lines", "blocks", "bytes")
 def measure_text(text: str, unit: Unit) -> int:
     """Measure already-serialized output.
 
-    ``chars`` excludes the trailing newline every renderer emits, so the count
-    matches what a user sees in an editor's character counter.
+    ``chars`` excludes the final line terminator (``\\n`` or ``\\r\\n``), so the
+    count matches what an editor reports as document content.
     """
     if unit == "chars":
-        return len(text[:-1]) if text.endswith("\n") else len(text)
+        if text.endswith("\r\n"):
+            return len(text) - 2
+        if text.endswith("\n"):
+            return len(text) - 1
+        return len(text)
     if unit == "lines":
         if not text:
             return 0
@@ -124,10 +129,16 @@ def fit(
     context: GenerationContext,
     *,
     floor_blocks: int = 1,
+    transform: Callable[[str], str] | None = None,
 ) -> str:
     """Resize elastic paragraphs until the rendered document meets the budget."""
     return fit_document(
-        document, renderer, tracker, context, floor_blocks=floor_blocks
+        document,
+        renderer,
+        tracker,
+        context,
+        floor_blocks=floor_blocks,
+        transform=transform,
     )[1]
 
 
@@ -138,9 +149,15 @@ def fit_document(
     context: GenerationContext,
     *,
     floor_blocks: int = 1,
+    transform: Callable[[str], str] | None = None,
 ) -> tuple[Document, str]:
-    """Fit the document and return both the adjusted AST and its rendering."""
-    text = renderer.render(document)
+    """Fit the document and return both the adjusted AST and its rendering.
+
+    ``transform`` is applied to every rendering before measurement, so
+    line-ending or trailing-newline policies are reflected in length targets.
+    """
+    apply = transform or (lambda text: text)
+    text = apply(renderer.render(document))
     for _ in range(MAX_FIT_STEPS):
         actual = measure(document, text, tracker.unit)
         if tracker.accepts(actual):
@@ -157,7 +174,7 @@ def fit_document(
             )
         if adjusted is document:
             break
-        adjusted_text = renderer.render(adjusted)
+        adjusted_text = apply(renderer.render(adjusted))
         if adjusted_text == text:
             break
         document, text = adjusted, adjusted_text
@@ -185,7 +202,7 @@ def _shrink(
     floor_blocks: int,
 ) -> Document:
     if unit in {"chars", "bytes"}:
-        return _shrink_chars(document, floor_blocks)
+        return _shrink_chars(document, floor_blocks, delta)
     if unit == "words":
         return _shrink_words(document, floor_blocks)
     if unit == "lines":
@@ -199,6 +216,28 @@ def _replace_last(document: Document, block: BlockNode) -> Document:
         return replace(document, children=(block,))
     blocks[-1] = block
     return replace(document, children=tuple(blocks))
+
+
+def _replace_at(document: Document, index: int, block: BlockNode) -> Document:
+    blocks = list(document.children)
+    blocks[index] = block
+    return replace(document, children=tuple(blocks))
+
+
+def _elastic_index(document: Document) -> int | None:
+    """Last block whose rendered length can be tuned one character at a time.
+
+    Setext headings are excluded: their underline tracks the text length, so a
+    one-character edit changes the output by two.
+    """
+    for index in range(len(document.children) - 1, -1, -1):
+        block = document.children[index]
+        if not isinstance(block, _ELASTIC_TYPES) or not block.children:
+            continue
+        if isinstance(block, Heading) and block.style == "setext":
+            continue
+        return index
+    return None
 
 
 def _append_block(document: Document, context: GenerationContext) -> Document:
@@ -227,9 +266,12 @@ def _append_suffix(block: BlockNode, suffix: str) -> BlockNode:
 
 
 def _grow_chars(document: Document, context: GenerationContext, delta: int) -> Document:
-    if not document.children or not isinstance(document.children[-1], _ELASTIC_TYPES):
+    index = _elastic_index(document)
+    if index is None:
         return _append_block(document, context)
-    paragraph = document.children[-1]
+    paragraph = document.children[index]
+    if not isinstance(paragraph, _ELASTIC_TYPES):
+        return _append_block(document, context)
     if delta > 40:
         suffix = " " + context.text.sentence()
     elif delta >= 2:
@@ -238,39 +280,42 @@ def _grow_chars(document: Document, context: GenerationContext, delta: int) -> D
         last = paragraph.children[-1] if paragraph.children else None
         ending = last.content[-1:] if isinstance(last, Text) else ""
         suffix = "!" if ending in {".", "!", "?"} else "."
-    return _replace_last(document, _append_suffix(paragraph, suffix))
+    return _replace_at(document, index, _append_suffix(paragraph, suffix))
 
 
-def _shrink_chars(document: Document, floor_blocks: int) -> Document:
-    blocks = list(document.children)
-    if not blocks:
-        return document
-    last = blocks[-1]
-    if not isinstance(last, _ELASTIC_TYPES) or not last.children:
+def _shrink_chars(document: Document, floor_blocks: int, delta: int = 0) -> Document:
+    index = _elastic_index(document)
+    if index is None:
+        return _drop_block(document, floor_blocks)
+    last = document.children[index]
+    if not isinstance(last, _ELASTIC_TYPES):
         return _drop_block(document, floor_blocks)
     children = list(last.children)
-    for index in range(len(children) - 1, -1, -1):
-        child = children[index]
+    for position in range(len(children) - 1, -1, -1):
+        child = children[position]
         if not isinstance(child, Text):
             continue
         content = child.content.rstrip()
+        if delta <= 2 and len(content) > 1:
+            children[position] = Text(content[:-1])
+            break
         head, _, _tail = content.rpartition(" ")
         if head:
-            children[index] = Text(head)
+            children[position] = Text(head)
         elif len(content) > 1:
-            children[index] = Text(content[:-1])
+            children[position] = Text(content[:-1])
         else:
-            children.pop(index)
+            children.pop(position)
         break
     else:
         return _drop_block(document, floor_blocks)
     if children:
-        blocks[-1] = replace(last, children=tuple(children))
-    elif len(blocks) > floor_blocks:
-        blocks.pop()
-    else:
-        return document
-    return replace(document, children=tuple(blocks))
+        return _replace_at(document, index, replace(last, children=tuple(children)))
+    if len(document.children) > floor_blocks:
+        blocks = list(document.children)
+        del blocks[index]
+        return replace(document, children=tuple(blocks))
+    return document
 
 
 def _grow_words(document: Document, context: GenerationContext) -> Document:

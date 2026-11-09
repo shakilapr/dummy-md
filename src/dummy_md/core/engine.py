@@ -7,19 +7,20 @@ from collections.abc import Iterator
 from pathlib import Path
 from random import Random
 
+import dummy_md.core.registry  # noqa: F401  (isort anchor)
 from dummy_md.config import DocumentSpec
 from dummy_md.core.budget import BudgetTracker, fit_document, measure, measure_text
 from dummy_md.core.context import GenerationContext
+from dummy_md.core.dialects import Dialect
 from dummy_md.core.nodes import BlockNode, Document
 from dummy_md.core.planner import Planner
 from dummy_md.core.registry import Registry
 from dummy_md.core.registry import registry as default_registry
-from dummy_md.renderers import get_renderer
+from dummy_md.exceptions import ConfigurationError
 from dummy_md.renderers.base import BaseRenderer
 from dummy_md.text import TEXT_PROVIDERS, DummyContentEngine
 
 SECTION_CHARS = 16_000
-_FILL_TARGET = 0.9
 
 
 class Generator:
@@ -47,10 +48,27 @@ class Generator:
             exclude=self.spec.exclude,
         )
         rng = Random(self.spec.seed)
+        text_seed = (
+            self.spec.text_seed
+            if self.spec.text_seed is not None
+            else self.spec.seed + 1
+        )
+        weights = {
+            feature_id: self.registry.feature(feature_id).default_weight
+            for feature_id in selected
+        }
+        for feature_id, weight in self.spec.feature_weights.items():
+            if feature_id not in self.registry.features:
+                raise ConfigurationError(
+                    f"feature weight references unknown feature {feature_id!r}"
+                )
+            weights[feature_id] = weight
         return GenerationContext(
             rng=rng,
             dialect=self.registry.dialect(self.spec.dialect),
-            text=DummyContentEngine(rng, TEXT_PROVIDERS[self.spec.text_style]),
+            text=DummyContentEngine(
+                Random(text_seed), TEXT_PROVIDERS[self.spec.text_style]
+            ),
             active_features=selected,
             budget=BudgetTracker(
                 unit=self.spec.length.unit,
@@ -59,8 +77,24 @@ class Generator:
                 tolerance=self.spec.length.tolerance,
             ),
             options=self.spec.elements,
+            feature_weights=weights,
             max_depth=self.spec.max_nesting_depth,
         )
+
+    def _renderer(self, dialect: Dialect) -> BaseRenderer:
+        renderer_type = self.registry.renderer(dialect.renderer)
+        return renderer_type(dialect)
+
+    def _transform(self, text: str) -> str:
+        """Apply the spec's line-ending and trailing-newline policy."""
+        if self.spec.line_ending == "crlf":
+            text = text.replace("\n", "\r\n")
+        if not self.spec.trailing_newline:
+            if text.endswith("\r\n"):
+                text = text[:-2]
+            elif text.endswith("\n"):
+                text = text[:-1]
+        return text
 
     # -- generation -------------------------------------------------------
     def generate(self) -> str:
@@ -71,7 +105,7 @@ class Generator:
             return
         context = self._context()
         planner = Planner(context, self.registry, self.spec)
-        renderer = get_renderer(context.dialect)
+        renderer = self._renderer(context.dialect)
         sections = self._section_count(chunk_size)
         remaining = self.spec.length.value
         for index in range(sections):
@@ -85,6 +119,7 @@ class Generator:
                 self._tracker(target),
                 context,
                 floor_blocks=floor,
+                transform=self._transform,
             )
             remaining = max(0, remaining - self._consumed(fitted, text))
             yield text
@@ -94,7 +129,7 @@ class Generator:
             return Document()
         context = self._context()
         planner = Planner(context, self.registry, self.spec)
-        renderer = get_renderer(context.dialect)
+        renderer = self._renderer(context.dialect)
         sections = self._section_count(None)
         remaining = self.spec.length.value
         children: list[BlockNode] = []
@@ -109,6 +144,7 @@ class Generator:
                 self._tracker(target),
                 context,
                 floor_blocks=floor,
+                transform=self._transform,
             )
             children.extend(fitted.children)
             remaining = max(0, remaining - self._consumed(fitted, text))
@@ -129,7 +165,7 @@ class Generator:
     def _section_count(self, chunk_size: int | None) -> int:
         if self.spec.length.unit not in {"chars", "bytes"}:
             return 1
-        size = max(1_000, chunk_size or SECTION_CHARS)
+        size = max(1_000, chunk_size or self.spec.section_chars)
         return max(1, math.ceil(self.spec.length.value / size))
 
     def _tracker(self, target: int) -> BudgetTracker:
@@ -164,7 +200,8 @@ class Generator:
         while planner.can_continue():
             document = self._assemble(context, blocks)
             if (
-                self._document_measure(document, renderer) >= target * _FILL_TARGET
+                self._document_measure(document, renderer)
+                >= target * self.spec.fill_ratio
                 and not planner.remaining_minimum()
             ):
                 break
@@ -187,7 +224,7 @@ class Generator:
     def _document_measure(self, document: Document, renderer: BaseRenderer) -> int:
         if self.spec.length.unit == "blocks":
             return len(document.children)
-        text = renderer.render(document)
+        text = self._transform(renderer.render(document))
         return measure(document, text, self.spec.length.unit)
 
     def _block_hint(self, target: int) -> int:
