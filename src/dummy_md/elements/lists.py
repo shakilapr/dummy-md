@@ -59,12 +59,23 @@ class ListGenerator:
 
     def generate(self, context: GenerationContext) -> BlockNode:
         options = resolve_options(context, self.family, ListOptions(), ListOptions)
+        if context.supports("stress.nesting.deep"):
+            return self._deep_list(context, options)
         if (
             context.supports("list.definition")
             and context.rng.random() < options.definition_ratio
         ):
             return self._definition_list(context)
         return self._build(context, options, depth=0)
+
+    def _deep_list(self, context: GenerationContext, options: ListOptions) -> ListBlock:
+        def build(depth: int) -> ListBlock:
+            children: list[BlockNode] = [self._item_paragraph(context)]
+            if depth < 6:
+                children.append(build(depth + 1))
+            return ListBlock(items=(ListItem(children=tuple(children)),))
+
+        return build(0)
 
     def _definition_list(self, context: GenerationContext) -> DefinitionList:
         items: list[DefinitionItem] = []

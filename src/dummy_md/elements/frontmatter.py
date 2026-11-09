@@ -60,6 +60,14 @@ class FrontMatterGenerator:
 
     # -- selection --------------------------------------------------------
     def _format(self, context: GenerationContext) -> Literal["yaml", "toml", "json"]:
+        if any(
+            feature.startswith("platform.obsidian.property.")
+            or feature.startswith("citation.bibliography_")
+            for feature in context.active_features
+        ):
+            # Platform metadata and bibliography keys are emitted as YAML, so a
+            # single mergeable metadata block is possible.
+            return "yaml"
         choices: list[Literal["yaml", "toml", "json"]] = [
             fmt for feature, fmt in _FORMATS if context.supports(feature)
         ]

@@ -374,6 +374,19 @@ def _treeview(context: GenerationContext) -> str:
     )
 
 
+def _usecase(context: GenerationContext) -> str:
+    actor = _node(context)
+    goal = _phrase(context, 4)
+    return "\n".join(
+        [
+            "usecase-beta",
+            f"    actor {actor}",
+            f"    usecase {goal.replace(' ', '')}",
+            f"    {actor} --> {goal.replace(' ', '')}",
+        ]
+    )
+
+
 def _graphviz(context: GenerationContext) -> str:
     return "\n".join(
         [
@@ -432,6 +445,7 @@ MERMAID_BODIES: dict[str, Callable[[GenerationContext], str]] = {
     "diagram.mermaid.ishikawa": _ishikawa,
     "diagram.mermaid.wardley": _wardley,
     "diagram.mermaid.treeview": _treeview,
+    "diagram.mermaid.usecase": _usecase,
     "diagram.graphviz": _graphviz,
     "diagram.plantuml": _plantuml,
     "diagram.d2": _d2,

@@ -36,6 +36,12 @@ class CodeBlockGenerator:
     def generate(self, context: GenerationContext) -> BlockNode:
         options = resolve_options(context, self.family, CodeOptions(), CodeOptions)
         active = context.active_in_family("code")
+        if context.supports("stress.whitespace.tabs"):
+            return CodeBlock(
+                code="\talpha\tbeta\n\tgamma\tdelta",
+                info="text",
+                feature="stress.whitespace.tabs",
+            )
         payload = self._payload(context, active)
         code = payload.build(context) if payload else context.text.sentence()
 
@@ -62,6 +68,24 @@ class CodeBlockGenerator:
             info = ""
 
         attributes = self._attributes(context, options)
+        feature = ""
+        if context.supports("code.line_numbers"):
+            pairs: tuple[tuple[str, str], ...] = attributes.pairs if attributes else ()
+            pairs = (*pairs, ("numberLines", ""))
+            attributes = Attributes(
+                identifier=attributes.identifier if attributes else None,
+                classes=attributes.classes if attributes else (),
+                pairs=pairs,
+            )
+            feature = "code.line_numbers"
+        annotations: tuple[str, ...] = ()
+        if context.supports_any(("code.annotations", "code.annotations.inline")):
+            annotations = tuple(
+                context.text.phrase(min_words=2, max_words=5)
+                for _ in range(context.rng.randint(1, 3))
+            )
+            if context.supports("code.annotations.inline"):
+                code = code + "  # (1)"
         caption = ""
         if (
             context.supports("code.caption")
@@ -76,6 +100,8 @@ class CodeBlockGenerator:
             fence_length=fence_length,
             attributes=attributes,
             caption=caption,
+            annotations=annotations,
+            feature=feature,
         )
 
     # -- helpers ----------------------------------------------------------

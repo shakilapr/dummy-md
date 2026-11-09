@@ -12,7 +12,7 @@ from dummy_md.config import DocumentSpec
 from dummy_md.core.budget import BudgetTracker, fit_document, measure, measure_text
 from dummy_md.core.context import GenerationContext
 from dummy_md.core.dialects import Dialect
-from dummy_md.core.nodes import BlockNode, Document
+from dummy_md.core.nodes import BlockNode, Document, FrontMatter
 from dummy_md.core.planner import Planner
 from dummy_md.core.registry import Registry
 from dummy_md.core.registry import registry as default_registry
@@ -98,7 +98,7 @@ class Generator:
     def _transform(self, text: str) -> str:
         """Apply the spec's line-ending and trailing-newline policy."""
         if self.spec.line_ending == "crlf":
-            text = text.replace("\n", "\r\n")
+            text = text.replace("\r\n", "\n").replace("\n", "\r\n")
         if not self.spec.trailing_newline:
             if text.endswith("\r\n"):
                 text = text[:-2]
@@ -225,8 +225,20 @@ class Generator:
     def _assemble(
         self, context: GenerationContext, blocks: list[BlockNode]
     ) -> Document:
+        metadata = [block for block in blocks if isinstance(block, FrontMatter)]
+        body = [block for block in blocks if not isinstance(block, FrontMatter)]
+        if metadata:
+            formats = {block.format for block in metadata}
+            if len(formats) == 1:
+                merged = FrontMatter(
+                    format=metadata[0].format,
+                    content="\n".join(block.content.strip("\n") for block in metadata),
+                )
+                body.insert(0, merged)
+            else:
+                body[:0] = metadata
         return Document(
-            children=tuple(blocks),
+            children=tuple(body),
             link_definitions=tuple(context.refs.links.values()),
             footnote_definitions=tuple(context.refs.footnotes.values()),
         )
@@ -299,15 +311,18 @@ class Generator:
     @staticmethod
     def _family_of(block: BlockNode) -> str:
         from dummy_md.core.nodes import (
+            Bibliography,
             Blockquote,
             Callout,
             CodeBlock,
+            DirectiveBlock,
             Figure,
             FrontMatter,
             Heading,
             HTMLBlock,
             ListBlock,
             MathBlock,
+            MdxBlock,
             Paragraph,
             Table,
             ThematicBreak,
@@ -335,6 +350,12 @@ class Generator:
             return "math"
         if isinstance(block, FrontMatter):
             return "frontmatter"
+        if isinstance(block, DirectiveBlock):
+            return "directive"
+        if isinstance(block, MdxBlock):
+            return "mdx"
+        if isinstance(block, Bibliography):
+            return "citation"
         if isinstance(block, Paragraph):
             return "paragraph"
         return "other"

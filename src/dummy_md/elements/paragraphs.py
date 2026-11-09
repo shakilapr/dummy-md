@@ -10,11 +10,13 @@ from dummy_md.core.nodes import (
     AbbreviationDefinition,
     Attributes,
     BlockNode,
+    CharacterReference,
     CodeSpan,
     Critic,
     CrossRef,
     EmojiShortcode,
     Emphasis,
+    Escape,
     FencedDiv,
     InlineFootnote,
     InlineNode,
@@ -147,6 +149,14 @@ class ParagraphGenerator:
         variant = self._block_variant(context, options)
         if variant is not None:
             return variant
+        stress = [
+            feature
+            for feature in context.active_in_family("stress")
+            if feature not in {"stress.nesting.deep", "stress.url.percent_encoded"}
+            and feature != "stress.document.large"
+        ]
+        if stress:
+            return self._stress_paragraph(context, context.weighted_feature(stress))
         count = context.rng.randint(options.min_sentences, options.max_sentences)
         feature_ids = sorted(
             feature
@@ -191,6 +201,88 @@ class ParagraphGenerator:
         return Paragraph(children=tuple(children))
 
     # -- helpers ----------------------------------------------------------
+    def _stress_paragraph(self, context: GenerationContext, feature: str) -> Paragraph:
+        """Deliberately awkward text used to exercise parser edge cases."""
+        escapes = {
+            "stress.escape.asterisk": "*",
+            "stress.escape.underscore": "_",
+            "stress.escape.heading": "#",
+            "stress.escape.blockquote": ">",
+            "stress.escape.bracket_open": "[",
+            "stress.escape.bracket_close": "]",
+            "stress.escape.paren_open": "(",
+            "stress.escape.paren_close": ")",
+            "stress.escape.pipe": "|",
+            "stress.escape.backtick": "`",
+            "stress.escape.backslash": "\\",
+        }
+        if feature in escapes:
+            character = escapes[feature]
+            return Paragraph(
+                children=(
+                    Text("Literal "),
+                    Escape(character),
+                    Text(" marker in running text."),
+                )
+            )
+        unicode_samples = {
+            "stress.text.html_like": "\U0001f600 <span>not html</span>",
+            "stress.text.entities": "&amp; &copy; &#169;",
+            "stress.unicode.mixed": "café — naïve — 日本語 — Привет — العربية",
+            "stress.unicode.combining": "e\u0301 a\u0308 n\u0303",
+            "stress.unicode.emoji_sequence": "👩🏽‍💻 🏳️‍🌈 👨‍👩‍👧‍👦",
+            "stress.unicode.cyrillic": "Пример текста на кириллице",
+            "stress.unicode.cjk": "これは日本語のテキストです",
+            "stress.unicode.rtl": "هذا نص عربي",
+            "stress.unicode.zero_width": "word\u200bword\u200dword",
+            "stress.text.leading_control_chars": "\u0001leading control chars",
+            "stress.text.long_unbroken": "x" * 180,
+            "stress.whitespace.trailing": "trailing spaces",
+            "stress.delimiters.adjacent": "***___~~~",
+            "stress.line_endings.lf": "line one\nline two",
+            "stress.line_endings.crlf": "line one\r\nline two",
+        }
+        if feature == "stress.line_endings.crlf":
+            return Paragraph(
+                children=(
+                    Text("line one"),
+                    LineBreak(hard=False, style="crlf"),
+                    Text("line two"),
+                )
+            )
+        if feature == "stress.line_endings.lf":
+            return Paragraph(
+                children=(
+                    Text("line one"),
+                    LineBreak(hard=False, style="lf"),
+                    Text("line two"),
+                )
+            )
+        sample = unicode_samples[feature]
+        if feature == "stress.delimiters.adjacent":
+            children: list[InlineNode] = [Escape(character) for character in sample]
+            return Paragraph(children=tuple(children))
+        if feature == "stress.text.entities":
+            return Paragraph(
+                children=(
+                    CharacterReference("amp"),
+                    Text(" and "),
+                    CharacterReference("copy"),
+                    Text(" and "),
+                    CharacterReference("169", kind="decimal"),
+                )
+            )
+        if feature == "stress.whitespace.trailing":
+            return Paragraph(
+                children=(
+                    Text("trailing spaces"),
+                    Text("   "),
+                    LineBreak(hard=False, style="soft"),
+                    Text("next line"),
+                )
+            )
+        return Paragraph(children=(Text(sample),))
+
     def _block_variant(
         self, context: GenerationContext, options: ParagraphOptions
     ) -> BlockNode | None:

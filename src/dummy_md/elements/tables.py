@@ -84,7 +84,9 @@ class TableGenerator:
         options = resolve_options(context, self.family, TableOptions(), TableOptions)
         columns = self._column_count(context, options)
         rows = self._row_count(context, options)
-        alignments = tuple(self._alignment(context) for _ in range(columns))
+        alignments: tuple[Alignment, ...] = tuple(
+            self._alignment(context) for _ in range(columns)
+        )
 
         header = tuple(
             TableCell(
@@ -115,16 +117,67 @@ class TableGenerator:
         ):
             caption = context.text.phrase(min_words=3, max_words=7, title_case=True)
 
+        style = self._style(context, options)
+        if style == "grid":
+            return self._grid_table(
+                context, options, columns, rows, alignments, caption
+            )
         return Table(
             header=header,
             rows=body,
             alignments=alignments,
             outer_pipes=outer_pipes,
             caption=caption,
-            style=self._style(context, options),
+            style=style,
+        )
+
+    def _grid_table(
+        self,
+        context: GenerationContext,
+        options: TableOptions,
+        columns: int,
+        rows: int,
+        alignments: tuple[Alignment, ...],
+        caption: str,
+    ) -> Table:
+        colspan = context.supports("table.grid.colspan") and columns >= 2
+        rowspan = context.supports("table.grid.rowspan")
+        if rowspan:
+            rows = max(2, rows)
+        header_cells = columns - 1 if colspan else columns
+        header = tuple(
+            TableCell(
+                children=self._cell_children(context, options),
+                colspan=2 if colspan and index == 0 else 1,
+            )
+            for index in range(header_cells)
+        )
+        body: list[tuple[TableCell, ...]] = []
+        for row_index in range(rows):
+            cells: list[TableCell] = []
+            if rowspan and row_index == 0:
+                cells.append(
+                    TableCell(children=self._cell_children(context, options), rowspan=2)
+                )
+            count = columns - (1 if rowspan else 0)
+            cells.extend(
+                TableCell(children=self._cell_children(context, options))
+                for _ in range(count)
+            )
+            body.append(tuple(cells))
+        return Table(
+            header=header,
+            rows=tuple(body),
+            alignments=alignments,
+            caption=caption,
+            style="grid",
         )
 
     def _style(self, context: GenerationContext, options: TableOptions) -> TableStyle:
+        if context.supports_any(
+            ("table.grid", "table.grid.colspan", "table.grid.rowspan")
+        ):
+            return "grid"
         candidates = [
             feature
             for feature in ("table.simple", "table.multiline")

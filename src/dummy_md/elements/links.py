@@ -112,6 +112,11 @@ class LinkGenerator:
         features: tuple[str, ...],
         options: LinkOptions,
     ) -> InlineNode:
+        if context.supports("stress.url.percent_encoded"):
+            return Link(
+                children=(Text(context.text.label()),),
+                destination="https://example.com/%E2%9C%93/path%20with%20spaces",
+            )
         autolink = self._autolink(context, features)
         if autolink is not None:
             return autolink

@@ -266,6 +266,8 @@ def _append_suffix(block: BlockNode, suffix: str) -> BlockNode:
 
 
 def _grow_chars(document: Document, context: GenerationContext, delta: int) -> Document:
+    if delta > 200:
+        return _append_block(document, context)
     index = _elastic_index(document)
     if index is None:
         return _append_block(document, context)

@@ -5,8 +5,10 @@ Generators build AST blocks; they never emit Markdown syntax.
 
 from dummy_md.core.registry import ElementGenerator, Registry
 from dummy_md.elements._util import build_options
+from dummy_md.elements.citation import CitationGenerator, CitationOptions
 from dummy_md.elements.code import CodeBlockGenerator, CodeOptions
 from dummy_md.elements.diagrams import DiagramGenerator, DiagramOptions
+from dummy_md.elements.directive import DirectiveGenerator, DirectiveOptions
 from dummy_md.elements.footnotes import FootnoteGenerator, FootnoteOptions
 from dummy_md.elements.frontmatter import FrontMatterGenerator, FrontMatterOptions
 from dummy_md.elements.headings import HeadingGenerator, HeadingOptions
@@ -15,7 +17,9 @@ from dummy_md.elements.images import ImageGenerator, ImageOptions
 from dummy_md.elements.links import LinkGenerator, LinkOptions
 from dummy_md.elements.lists import ListGenerator, ListOptions
 from dummy_md.elements.math import MathGenerator, MathOptions
+from dummy_md.elements.mdx import MdxGenerator, MdxOptions
 from dummy_md.elements.paragraphs import ParagraphGenerator, ParagraphOptions
+from dummy_md.elements.platform import PlatformGenerator, PlatformOptions
 from dummy_md.elements.quotes import CalloutGenerator, QuoteGenerator, QuoteOptions
 from dummy_md.elements.tables import TableGenerator, TableOptions
 from dummy_md.elements.thematic import ThematicBreakGenerator, ThematicBreakOptions
@@ -35,6 +39,10 @@ OPTION_TYPES: dict[str, type] = {
     "math": MathOptions,
     "diagram": DiagramOptions,
     "frontmatter": FrontMatterOptions,
+    "citation": CitationOptions,
+    "directive": DirectiveOptions,
+    "mdx": MdxOptions,
+    "platform": PlatformOptions,
 }
 
 
@@ -58,6 +66,10 @@ def build_generators() -> dict[str, ElementGenerator]:
         MathGenerator(),
         DiagramGenerator(),
         FrontMatterGenerator(),
+        CitationGenerator(),
+        DirectiveGenerator(paragraphs),
+        MdxGenerator(),
+        PlatformGenerator(paragraphs),
     ]
     return {generator.family: generator for generator in generators}
 
