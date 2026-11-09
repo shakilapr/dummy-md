@@ -5,11 +5,11 @@ from __future__ import annotations
 import argparse
 import json
 import sys
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from pathlib import Path
 
 import dummy_md
-from dummy_md.config import DocumentSpec, LengthSpec
+from dummy_md.config import DocumentSpec, ElementRule, LengthSpec
 from dummy_md.core.budget import Unit
 from dummy_md.core.catalog import CATALOG
 from dummy_md.core.dialects import DIALECTS
@@ -113,6 +113,27 @@ def _add_spec_options(parser: argparse.ArgumentParser, *, allow_amount: bool) ->
         help="override a feature weight (repeatable)",
     )
     parser.add_argument(
+        "--option",
+        action="append",
+        default=[],
+        metavar="FAMILY.KEY=VALUE",
+        help="set a generator option, e.g. heading.style=setext (repeatable)",
+    )
+    parser.add_argument(
+        "--element-weight",
+        action="append",
+        default=[],
+        metavar="FAMILY=WEIGHT",
+        help="set how often a family is chosen (repeatable)",
+    )
+    parser.add_argument(
+        "--min-count",
+        action="append",
+        default=[],
+        metavar="FAMILY=N",
+        help="require at least N blocks from a family (repeatable)",
+    )
+    parser.add_argument(
         "--exact", action="store_true", help="require the exact requested length"
     )
     parser.add_argument(
@@ -129,6 +150,16 @@ def _add_spec_options(parser: argparse.ArgumentParser, *, allow_amount: bool) ->
         "--no-trailing-newline",
         action="store_true",
         help="omit the final line terminator",
+    )
+    parser.add_argument(
+        "--no-heading-skeleton",
+        action="store_true",
+        help="do not force a heading skeleton around the document",
+    )
+    parser.add_argument(
+        "--no-frontmatter",
+        action="store_true",
+        help="omit the front matter block in dialects that support it",
     )
     parser.add_argument(
         "--section-chars", type=int, default=16_000, help="section size for streaming"
@@ -193,11 +224,18 @@ def _document_spec(args: argparse.Namespace) -> DocumentSpec:
             ),
             include=tuple(args.include),
             exclude=tuple(args.exclude),
+            elements=build_element_rules(
+                parse_options(args.option),
+                parse_element_weights(args.element_weight),
+                parse_min_counts(args.min_count),
+            ),
             feature_weights=parse_weights(args.feature_weight),
             text_style=args.text,
             max_nesting_depth=args.depth,
             line_ending=args.line_ending,
             trailing_newline=not args.no_trailing_newline,
+            heading_skeleton=not args.no_heading_skeleton,
+            include_frontmatter=not args.no_frontmatter,
             section_chars=args.section_chars,
             fill_ratio=args.fill_ratio,
         )
@@ -232,6 +270,80 @@ def parse_size(value: str) -> int:
         return int(text)
     except ValueError as error:
         raise DummyMdError(f"invalid size {value!r}") from error
+
+
+def parse_options(values: Sequence[str]) -> dict[str, dict[str, object]]:
+    """Parse ``family.key=value`` pairs into per-family option mappings.
+
+    Values are decoded as JSON when possible (``true``, ``0.5``, ``[1, 2]``) and
+    kept as plain strings otherwise, matching the mapping form that
+    :func:`dummy_md.elements.build_options` accepts.
+    """
+    options: dict[str, dict[str, object]] = {}
+    for value in values:
+        path, separator, raw = value.partition("=")
+        family, _, key = path.partition(".")
+        if not separator or not family or not key:
+            raise DummyMdError(f"invalid option {value!r}; expected FAMILY.KEY=VALUE")
+        try:
+            parsed: object = json.loads(raw)
+        except json.JSONDecodeError:
+            parsed = raw
+        options.setdefault(family.strip(), {})[key.strip()] = parsed
+    return options
+
+
+def parse_element_weights(values: Sequence[str]) -> dict[str, float]:
+    """Parse ``family=weight`` pairs for element selection."""
+    weights: dict[str, float] = {}
+    for value in values:
+        family, separator, raw = value.partition("=")
+        if not separator or not family.strip():
+            raise DummyMdError(
+                f"invalid element weight {value!r}; expected FAMILY=WEIGHT"
+            )
+        try:
+            weight = float(raw)
+        except ValueError as error:
+            raise DummyMdError(f"invalid element weight {value!r}") from error
+        if weight <= 0:
+            raise DummyMdError(f"element weight must be positive: {value!r}")
+        weights[family.strip()] = weight
+    return weights
+
+
+def parse_min_counts(values: Sequence[str]) -> dict[str, int]:
+    """Parse ``family=count`` pairs for minimum block counts."""
+    counts: dict[str, int] = {}
+    for value in values:
+        family, separator, raw = value.partition("=")
+        if not separator or not family.strip():
+            raise DummyMdError(f"invalid min count {value!r}; expected FAMILY=N")
+        try:
+            count = int(raw)
+        except ValueError as error:
+            raise DummyMdError(f"invalid min count {value!r}") from error
+        if count < 0:
+            raise DummyMdError(f"min count must be non-negative: {value!r}")
+        counts[family.strip()] = count
+    return counts
+
+
+def build_element_rules(
+    options: Mapping[str, dict[str, object]],
+    weights: Mapping[str, float],
+    minimums: Mapping[str, int],
+) -> dict[str, ElementRule]:
+    """Combine per-family options, weights and minimum counts."""
+    families = set(options) | set(weights) | set(minimums)
+    return {
+        family: ElementRule(
+            min_count=minimums.get(family, 0),
+            weight=weights.get(family, 1.0),
+            options=options.get(family),
+        )
+        for family in sorted(families)
+    }
 
 
 def parse_weights(values: Sequence[str]) -> dict[str, float]:
