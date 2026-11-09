@@ -1,0 +1,41 @@
+"""Footnote generation with a definition closure."""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+
+from dummy_md.core.context import GenerationContext
+from dummy_md.core.nodes import (
+    BlockNode,
+    FootnoteDefinition,
+    FootnoteReference,
+    Paragraph,
+    Text,
+)
+
+
+@dataclass(frozen=True, slots=True)
+class FootnoteOptions:
+    multiline_ratio: float = 0.3
+
+
+class FootnoteGenerator:
+    family = "footnote"
+
+    def generate(self, context: GenerationContext) -> BlockNode:
+        label = context.refs.footnote_label()
+        body = Paragraph(
+            children=(
+                Text(context.text.sentence(min_words=5, max_words=12) + " "),
+                FootnoteReference(label=label),
+            )
+        )
+        children: list[BlockNode] = [
+            Paragraph(children=(Text(context.text.sentence()),))
+        ]
+        if context.supports("footnote.multiline") and context.rng.random() < 0.3:
+            children.append(Paragraph(children=(Text(context.text.sentence()),)))
+        context.refs.add_footnote(
+            FootnoteDefinition(label=label, children=tuple(children))
+        )
+        return body

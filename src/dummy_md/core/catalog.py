@@ -16,6 +16,12 @@ E = frozenset({"extended", "stress"})
 S = frozenset({"stress"})
 
 
+# Families that are emitted through a shared generator.
+_FAMILY_GENERATORS: dict[str, str] = {
+    "meta": "frontmatter",
+}
+
+
 def F(
     feature_id: str,
     kind: str,
@@ -25,9 +31,14 @@ def F(
     requires: tuple[str, ...] = (),
     implemented: bool = False,
     generator: str | None = None,
+    implicit: bool = False,
     weight: float = 1.0,
 ) -> FeatureSpec:
-    """Build a catalog entry, defaulting the generator to the family name."""
+    """Build a catalog entry.
+
+    ``generator`` defaults to the family name; ``implicit`` marks features that
+    are not produced by any generator (the document body itself).
+    """
     family = feature_id.split(".")[0]
     return FeatureSpec(
         id=feature_id,
@@ -35,7 +46,9 @@ def F(
         kind=kind,
         dialects=dialects,
         tier=tier,
-        generator=generator if generator is not None else family,
+        generator=None
+        if implicit
+        else (generator or _FAMILY_GENERATORS.get(family, family)),
         requires=frozenset(requires),
         default_weight=weight,
         implemented=implemented,
@@ -44,7 +57,7 @@ def F(
 
 CATALOG: tuple[FeatureSpec, ...] = (
     # ---------------------------------------------------------------- document
-    F("doc.body", "structure", C, "core", generator=None, implemented=True),
+    F("doc.body", "structure", C, "core", implicit=True, implemented=True),
     # ---------------------------------------------------------------- headings
     F("heading.atx.h1", "structure", C, "core", implemented=True),
     F("heading.atx.h2", "structure", C, "core", implemented=True),
@@ -630,7 +643,7 @@ CATALOG: tuple[FeatureSpec, ...] = (
         generator="paragraph",
     ),
     F("stress.nesting.deep", "stress", S, "advanced", generator="list"),
-    F("stress.document.large", "stress", S, "advanced", generator=None),
+    F("stress.document.large", "stress", S, "advanced", implicit=True),
 )
 
 CATALOG_BY_ID: dict[str, FeatureSpec] = {spec.id: spec for spec in CATALOG}

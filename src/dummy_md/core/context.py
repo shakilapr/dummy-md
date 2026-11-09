@@ -21,6 +21,7 @@ class HeadingTracker:
     """Keeps heading levels from jumping past one step."""
 
     last_level: int = 0
+    last_title: str = ""
     seen: list[int] = field(default_factory=list)
 
     def next_level(self, desired: int, *, allow_skips: bool = False) -> int:

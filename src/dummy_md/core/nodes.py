@@ -138,11 +138,13 @@ class HTMLBlock(BlockNode):
 class ListBlock(BlockNode):
     ordered: bool = False
     items: tuple[ListItem, ...] = ()
-    delimiter: str = "-"
+    delimiter: str = ""
     start: int = 1
     tight: bool = True
 
     def __post_init__(self) -> None:
+        if not self.delimiter:
+            object.__setattr__(self, "delimiter", "." if self.ordered else "-")
         if self.ordered and self.delimiter not in {".", ")"}:
             raise ValueError(
                 f"ordered list delimiter must be '.' or ')', got {self.delimiter!r}"
@@ -215,6 +217,12 @@ class MathBlock(BlockNode):
 
 
 @dataclass(frozen=True, slots=True)
+class Figure(BlockNode):
+    image: Image
+    caption: str = ""
+
+
+@dataclass(frozen=True, slots=True)
 class LinkDefinition(MarkdownNode):
     label: str
     destination: str
@@ -261,6 +269,11 @@ class Emphasis(InlineNode):
 
 
 @dataclass(frozen=True, slots=True)
+class Strikethrough(InlineNode):
+    children: tuple[InlineNode, ...] = ()
+
+
+@dataclass(frozen=True, slots=True)
 class CodeSpan(InlineNode):
     code: str
 
@@ -282,6 +295,7 @@ class Image(InlineNode):
     title: str = ""
     kind: InlineKind = "inline"
     label: str = ""
+    title_delimiter: ReferenceTitleDelimiter = '"'
     width: int | None = None
     height: int | None = None
 
@@ -290,6 +304,7 @@ class Image(InlineNode):
 class Autolink(InlineNode):
     target: str
     is_email: bool = False
+    bracketed: bool = True
 
 
 @dataclass(frozen=True, slots=True)
@@ -340,10 +355,12 @@ def children_of(node: MarkdownNode) -> tuple[MarkdownNode, ...]:
         return tuple(cells)
     if isinstance(node, TableCell):
         return tuple(node.children)
-    if isinstance(node, Emphasis | Link):
+    if isinstance(node, Emphasis | Link | Strikethrough):
         return tuple(node.children)
     if isinstance(node, Image):
         return tuple(node.alt)
+    if isinstance(node, Figure):
+        return (node.image,)
     return ()
 
 

@@ -18,6 +18,7 @@ from dummy_md.core.nodes import (
     CodeSpan,
     Emphasis,
     Escape,
+    Figure,
     FootnoteReference,
     FrontMatter,
     Heading,
@@ -78,6 +79,8 @@ class CommonMarkRenderer(BaseRenderer):
             return self._front_matter(node)
         if isinstance(node, MathBlock):
             return self._math_block(node)
+        if isinstance(node, Figure):
+            return self._figure(node)
         raise RenderError(f"cannot render block {type(node).__name__}")
 
     # -- inlines ----------------------------------------------------------
@@ -109,7 +112,7 @@ class CommonMarkRenderer(BaseRenderer):
         if isinstance(node, Image):
             return self._image(node, mode)
         if isinstance(node, Autolink):
-            return f"<{node.target}>"
+            return f"<{node.target}>" if node.bracketed else node.target
         if isinstance(node, RawHTML):
             return node.content
         if isinstance(node, FootnoteReference):
@@ -262,6 +265,12 @@ class CommonMarkRenderer(BaseRenderer):
         if node.delimiter == "bracket":
             return f"\\[\n{expression}\n\\]"
         return f"$$\n{expression}\n$$"
+
+    def _figure(self, node: Figure) -> str:
+        self.require("image.figure.caption", "figure captions")
+        image = self.render_block(Paragraph(children=(node.image,)))
+        caption = self.render_block(Paragraph(children=(Text(node.caption),)))
+        return f"{image}\n\n{caption}"
 
     # -- inline helpers ---------------------------------------------------
     def _code_span(self, node: CodeSpan) -> str:
