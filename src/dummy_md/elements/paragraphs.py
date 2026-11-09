@@ -10,15 +10,17 @@ from dummy_md.core.nodes import (
     BlockNode,
     CodeSpan,
     Emphasis,
+    InlineFootnote,
     InlineNode,
     LineBreak,
+    Math,
     Paragraph,
     Strikethrough,
     Text,
 )
 from dummy_md.elements._util import resolve_options
 
-_EMPHASIS: dict[str, Callable[[str], InlineNode]] = {
+_INLINE_BUILDERS: dict[str, Callable[[str], InlineNode]] = {
     "inline.emphasis.asterisk": lambda text: Emphasis(
         children=(Text(text),), level=1, delimiter="*"
     ),
@@ -43,6 +45,9 @@ _EMPHASIS: dict[str, Callable[[str], InlineNode]] = {
     "inline.code_span": lambda text: CodeSpan(code=text),
     "inline.code_span.multi_backtick": lambda text: CodeSpan(code="`" + text + "`"),
     "inline.code_span.backtick_content": lambda text: CodeSpan(code=text + "`"),
+    "math.inline.dollar": lambda text: Math(expression=text, delimiter="dollar"),
+    "math.inline.paren": lambda text: Math(expression=text, delimiter="bracket"),
+    "footnote.inline": lambda text: InlineFootnote(children=(Text(text),)),
 }
 
 
@@ -68,11 +73,11 @@ class ParagraphGenerator:
             context, self.family, ParagraphOptions(), ParagraphOptions
         )
         count = context.rng.randint(options.min_sentences, options.max_sentences)
-        feature_ids = [
+        feature_ids = sorted(
             feature
-            for feature in context.active_in_family("inline")
-            if feature in _EMPHASIS
-        ]
+            for feature in context.active_features
+            if feature in _INLINE_BUILDERS
+        )
 
         children: list[InlineNode] = []
         decorations = 0
@@ -86,15 +91,14 @@ class ParagraphGenerator:
                 and context.rng.random() < options.inline_ratio
             )
             if use_decoration:
-                builder = _EMPHASIS[context.weighted_feature(feature_ids)]
+                builder = _INLINE_BUILDERS[context.weighted_feature(feature_ids)]
                 children.extend(self._decorate(context, builder, options))
                 decorations += 1
             else:
                 children.append(Text(self._sentence(context, options)))
 
-        if (
-            context.supports("inline.emoji.unicode")
-            and context.rng.random() < options.emoji_ratio
+        if context.supports("inline.emoji.unicode") and (
+            context.rng.random() < options.emoji_ratio
         ):
             children.append(Text(" \U0001f642"))
         return Paragraph(children=tuple(children))

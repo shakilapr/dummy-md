@@ -50,6 +50,7 @@ class TableOptions:
     inline_ratio: float = 0.3
     header_only_ratio: float = 0.1
     caption_ratio: float = 0.25
+    many_ratio: float = 0.2
     min_cell_words: int = 1
     max_cell_words: int = 3
 
@@ -59,7 +60,7 @@ class TableGenerator:
 
     def generate(self, context: GenerationContext) -> BlockNode:
         options = resolve_options(context, self.family, TableOptions(), TableOptions)
-        columns = context.rng.randint(options.min_columns, options.max_columns)
+        columns = self._column_count(context, options)
         rows = self._row_count(context, options)
         alignments = tuple(self._alignment(context) for _ in range(columns))
 
@@ -111,6 +112,14 @@ class TableGenerator:
             return 0
         return context.rng.randint(options.min_rows, options.max_rows)
 
+    def _column_count(self, context: GenerationContext, options: TableOptions) -> int:
+        if (
+            context.supports("table.columns.many")
+            and context.rng.random() < options.many_ratio
+        ):
+            return context.rng.randint(options.max_columns + 2, options.max_columns + 6)
+        return context.rng.randint(options.min_columns, options.max_columns)
+
     def _cell_count(self, context: GenerationContext, columns: int) -> int:
         if context.supports("table.rows.missing_cells") and context.rng.random() < 0.15:
             return max(1, columns - 1)
@@ -145,10 +154,19 @@ class TableGenerator:
             and context.rng.random() < options.empty_ratio
         ):
             return ()
-        text = context.text.table_cell(numeric_ratio=options.numeric_ratio)
+        numeric_ratio = (
+            options.numeric_ratio if context.supports("table.payload.numeric") else 0.0
+        )
+        text = context.text.table_cell(numeric_ratio=numeric_ratio)
         if not text.replace(".", "").isdigit():
             count = context.rng.randint(options.min_cell_words, options.max_cell_words)
             text = " ".join(context.text.words(count))
+            if (
+                context.supports("table.cell.escaped_pipe")
+                and context.rng.random() < options.inline_ratio
+            ):
+                words = text.split(" ")
+                text = words[0] + " | " + " ".join(words[1:] or ["x"])
         styles = [feature for feature in _CELL_STYLES if context.supports(feature)]
         if not styles or context.rng.random() >= options.inline_ratio:
             return (Text(text),)

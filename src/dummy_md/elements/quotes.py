@@ -11,8 +11,10 @@ from dummy_md.core.nodes import (
     Callout,
     CodeBlock,
     Heading,
+    LineBreak,
     ListBlock,
     ListItem,
+    Paragraph,
     Text,
 )
 from dummy_md.elements._util import resolve_options
@@ -51,6 +53,7 @@ class QuoteOptions:
     title_ratio: float = 0.4
     foldable_ratio: float = 0.3
     nested_callout_ratio: float = 0.2
+    lazy_ratio: float = 0.6
 
 
 class QuoteGenerator:
@@ -65,15 +68,39 @@ class QuoteGenerator:
         self._tables = tables or TableGenerator()
 
     def generate(self, context: GenerationContext) -> BlockNode:
-        return self._quote(context, depth=0)
+        options = resolve_options(context, self.family, QuoteOptions(), QuoteOptions)
+        return self._quote(context, options, depth=0)
 
-    def _quote(self, context: GenerationContext, *, depth: int) -> Blockquote:
-        children: list[BlockNode] = [self._paragraphs.generate(context)]
+    def _quote(
+        self,
+        context: GenerationContext,
+        options: QuoteOptions,
+        *,
+        depth: int,
+    ) -> Blockquote:
+        lazy = (
+            context.supports("blockquote.lazy")
+            and context.rng.random() < options.lazy_ratio
+        )
+        first = (
+            self._lazy_paragraph(context)
+            if lazy
+            else self._paragraphs.generate(context)
+        )
+        children: list[BlockNode] = [first]
 
         if context.supports("blockquote.multi_paragraph"):
             children.append(self._paragraphs.generate(context))
 
-        if context.supports("blockquote.heading") and context.rng.random() < 0.2:
+        heading_ok = context.supports("blockquote.heading")
+        list_ok = context.supports_any(("blockquote.list", "list.in_blockquote"))
+        code_ok = context.supports_any(("blockquote.code", "code.in_blockquote"))
+        table_ok = context.supports("blockquote.table")
+        nested_ok = (
+            context.supports("blockquote.nested") and depth < 2 and context.can_nest
+        )
+
+        if heading_ok and context.rng.random() < options.extra_block_ratio:
             children.append(
                 Heading(
                     level=context.rng.randint(2, 4),
@@ -81,7 +108,7 @@ class QuoteGenerator:
                 )
             )
 
-        if context.supports("blockquote.list") and context.rng.random() < 0.25:
+        if list_ok and context.rng.random() < options.extra_block_ratio:
             children.append(
                 ListBlock(
                     items=(
@@ -91,21 +118,26 @@ class QuoteGenerator:
                 )
             )
 
-        if context.supports("blockquote.code") and context.rng.random() < 0.2:
+        if code_ok and context.rng.random() < options.extra_block_ratio:
             children.append(CodeBlock(code=context.text.sentence(), info="text"))
 
-        if context.supports("blockquote.table") and context.rng.random() < 0.2:
+        if table_ok and context.rng.random() < options.extra_block_ratio:
             children.append(self._tables.generate(context))
 
-        if (
-            context.supports("blockquote.nested")
-            and depth < 2
-            and context.can_nest
-            and context.rng.random() < 0.25
-        ):
-            children.append(self._quote(context.nested(), depth=depth + 1))
+        if nested_ok and context.rng.random() < options.nested_ratio:
+            children.append(self._quote(context.nested(), options, depth=depth + 1))
 
-        return Blockquote(children=tuple(children))
+        return Blockquote(children=tuple(children), lazy=lazy)
+
+    @staticmethod
+    def _lazy_paragraph(context: GenerationContext) -> Paragraph:
+        return Paragraph(
+            children=(
+                Text(context.text.sentence()),
+                LineBreak(hard=False, style="soft"),
+                Text(context.text.sentence()),
+            )
+        )
 
 
 class CalloutGenerator:

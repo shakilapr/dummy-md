@@ -83,7 +83,7 @@ class DummyContentEngine:
         roll = self.rng.random()
         if roll < numeric_ratio:
             return str(self.number(0, 9999))
-        if roll < numeric_ratio + 0.15:
+        if numeric_ratio > 0 and roll < numeric_ratio + 0.15:
             return self.decimal(places=2)
         return self.phrase(min_words=1, max_words=3)
 

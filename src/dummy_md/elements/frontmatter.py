@@ -40,7 +40,6 @@ _META_FIELDS: tuple[str, ...] = (
 
 @dataclass(frozen=True, slots=True)
 class FrontMatterOptions:
-    include_ratio: float = 0.7
     max_fields: int = 8
 
 

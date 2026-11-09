@@ -12,6 +12,7 @@ from dummy_md.core.nodes import (
     Paragraph,
     Text,
 )
+from dummy_md.elements._util import resolve_options
 
 
 @dataclass(frozen=True, slots=True)
@@ -23,6 +24,9 @@ class FootnoteGenerator:
     family = "footnote"
 
     def generate(self, context: GenerationContext) -> BlockNode:
+        options = resolve_options(
+            context, self.family, FootnoteOptions(), FootnoteOptions
+        )
         if context.block_hint < 400:
             # A footnote definition adds an unavoidable document trailer; skip it
             # when the surrounding section budget is smaller than the trailer.
@@ -37,7 +41,10 @@ class FootnoteGenerator:
         children: list[BlockNode] = [
             Paragraph(children=(Text(context.text.sentence()),))
         ]
-        if context.supports("footnote.multiline") and context.rng.random() < 0.3:
+        if (
+            context.supports("footnote.multiline")
+            and context.rng.random() < options.multiline_ratio
+        ):
             children.append(Paragraph(children=(Text(context.text.sentence()),)))
         context.refs.add_footnote(
             FootnoteDefinition(label=label, children=tuple(children))

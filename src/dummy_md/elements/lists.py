@@ -93,7 +93,7 @@ class ListGenerator:
             )
 
         if (
-            context.supports("list.item.code_block")
+            context.supports_any(("list.item.code_block", "code.in_list"))
             and context.rng.random() < options.extra_block_ratio
         ):
             children.append(
