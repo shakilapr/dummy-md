@@ -18,7 +18,7 @@ from dummy_md.core.registry import Registry
 from dummy_md.core.registry import registry as default_registry
 from dummy_md.exceptions import ConfigurationError
 from dummy_md.renderers.base import BaseRenderer
-from dummy_md.text import TEXT_PROVIDERS, DummyContentEngine
+from dummy_md.text import DummyContentEngine, text_provider
 
 SECTION_CHARS = 16_000
 
@@ -67,7 +67,7 @@ class Generator:
             rng=rng,
             dialect=self.registry.dialect(self.spec.dialect),
             text=DummyContentEngine(
-                Random(text_seed), TEXT_PROVIDERS[self.spec.text_style]
+                Random(text_seed), text_provider(self.spec.text_style)
             ),
             active_features=selected,
             budget=BudgetTracker(
