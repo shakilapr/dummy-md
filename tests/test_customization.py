@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Iterator
 from pathlib import Path
+from random import Random
 
 import pytest
 
@@ -38,7 +40,9 @@ from dummy_md.elements import (
     build_options,
 )
 from dummy_md.exceptions import ConfigurationError, DialectError
+from dummy_md.presets import PRESETS, Preset, register_preset
 from dummy_md.renderers import GFMRenderer, get_renderer
+from dummy_md.text import TEXT_PROVIDERS, register_text_style
 from tests.helpers import REGISTRY, build_context
 
 # --------------------------------------------------------------------------
@@ -590,3 +594,102 @@ def test_available_elements_accepts_custom_registry() -> None:
 def test_line_ending_type_export() -> None:
     value: LineEnding = "lf"
     assert value in {"lf", "crlf"}
+
+
+# --------------------------------------------------------------------------
+# custom text styles, presets and spec files
+# --------------------------------------------------------------------------
+
+
+@pytest.fixture
+def restore_globals() -> Iterator[None]:
+    styles = dict(TEXT_PROVIDERS)
+    presets = dict(PRESETS)
+    yield
+    TEXT_PROVIDERS.clear()
+    TEXT_PROVIDERS.update(styles)
+    PRESETS.clear()
+    PRESETS.update(presets)
+
+
+class HelloProvider:
+    """A deliberately trivial provider to prove the plug-in seam works."""
+
+    name = "hello"
+
+    def word(self, rng: Random) -> str:
+        return "hello"
+
+
+def test_custom_text_style(restore_globals: None) -> None:
+    register_text_style("hello", HelloProvider())
+    assert "hello" in dummy_md.text_styles()
+    spec = DocumentSpec(
+        seed=1,
+        text_style="hello",
+        include=["paragraph.single_line", "heading.atx.h2"],
+        heading_skeleton=False,
+        length=LengthSpec(300),
+    )
+    text = Generator(spec).generate()
+    assert "hello" in text.lower()
+
+
+def test_duplicate_text_style_requires_replace(restore_globals: None) -> None:
+    with pytest.raises(ConfigurationError, match="already registered"):
+        register_text_style("lorem", HelloProvider())
+    register_text_style("lorem", HelloProvider(), replace=True)
+
+
+def test_text_provider_must_match_protocol(restore_globals: None) -> None:
+    with pytest.raises(ConfigurationError, match="must define"):
+        register_text_style("broken", object())  # type: ignore[arg-type]
+    with pytest.raises(ConfigurationError, match="must not be empty"):
+        register_text_style("", HelloProvider())
+
+
+def test_unknown_text_style_names_the_valid_set() -> None:
+    with pytest.raises(ConfigurationError, match="unknown text style"):
+        DocumentSpec(text_style="nope")
+
+
+def test_custom_preset(restore_globals: None) -> None:
+    preset = Preset(
+        name="headings-only",
+        description="Only headings, for navigation fixtures",
+        include=("heading.*",),
+        text_style="lorem",
+    )
+    register_preset(preset)
+    assert "headings-only" in dummy_md.available_presets()
+    text = dummy_md.generate(length=400, seed=1, preset="headings-only")
+    assert text.startswith("#")
+    with pytest.raises(ConfigurationError, match="already registered"):
+        register_preset(preset)
+    register_preset(Preset(name="headings-only", description="replaced"), replace=True)
+    assert dummy_md.available_presets()["headings-only"] == "replaced"
+
+
+def test_unknown_preset_lists_choices() -> None:
+    with pytest.raises(ConfigurationError, match="unknown preset"):
+        dummy_md.generate(length=100, preset="nope")
+
+
+def test_spec_json_round_trip(tmp_path: Path) -> None:
+    spec = sample_spec()
+    text = spec.to_json()
+    assert DocumentSpec.from_json(text).to_dict() == spec.to_dict()
+
+    path = tmp_path / "spec.json"
+    same = spec.to_json(path)
+    assert path.read_text(encoding="utf-8") == same + "\n"
+    assert DocumentSpec.from_json_file(path).to_dict() == spec.to_dict()
+
+
+def test_spec_json_rejects_bad_input(tmp_path: Path) -> None:
+    with pytest.raises(ConfigurationError, match="invalid spec JSON"):
+        DocumentSpec.from_json("{not json")
+    with pytest.raises(ConfigurationError, match="must be an object"):
+        DocumentSpec.from_json("[]")
+    with pytest.raises(ConfigurationError, match="cannot read spec file"):
+        DocumentSpec.from_json_file(tmp_path / "missing.json")
