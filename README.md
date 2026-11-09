@@ -16,9 +16,10 @@ Whether you are benchmarking a Markdown renderer, building automated test suites
 ## Key Highlights
 
 - **Syntactically Valid by Design:** Generates a typed Markdown AST before serializing, preventing broken table pipes, unclosed code fences, and malformed list nesting.
+- **Exhaustive Element Support:** Includes the complete set of standard Markdown elements (ATX/Setext headings, indented/fenced code, tight/loose lists, reference links, HTML blocks, character references) and extended syntaxes (tables, task lists, footnotes, math, Mermaid).
 - **Accurate Length Budgeting:** Control document length by characters, words, lines, top-level blocks, or approximate file size (`KB`, `MB`).
 - **Reproducible & Deterministic:** Given the same configuration and seed, `dummy-md` produces 100% byte-identical output across systems.
-- **Dialect-Aware:** Support for standard CommonMark, GitHub Flavored Markdown (GFM), and extended syntax (footnotes, math, Mermaid diagrams, frontmatter).
+- **Dialect-Aware:** Support for standard baseline syntax, GitHub Flavored Markdown (GFM), and extended dialect plugins.
 - **Scalable Streaming:** Stream multi-gigabyte corpora directly to disk or network pipelines with minimal memory overhead.
 - **Zero Core Runtime Dependencies:** Written in modern Python standard library with optional developer and parser-testing extensions.
 
@@ -42,7 +43,7 @@ pip install "dummy-md[dev]"
 
 ### Simple API
 
-Generate valid GFM with a single function call:
+Generate valid Markdown with a single function call:
 
 ```python
 import dummy_md
@@ -114,6 +115,9 @@ generator.write("sample.md")
 # Generate sample GFM to stdout
 dummy-md generate --chars 10000 --dialect gfm
 
+# Generate standard compliant text
+dummy-md generate --chars 8000 --dialect standard
+
 # Use a built-in preset and write to file
 dummy-md generate --preset tables --words 2500 --output test_tables.md
 
@@ -134,18 +138,19 @@ dummy-md presets
 
 | Family | Elements | Notes |
 | :--- | :--- | :--- |
-| **Headings** | ATX (`#`), Setext (`===`, `---`) | Levels 1–6, hierarchical validation |
-| **Text** | Paragraphs, soft breaks, hard breaks | Realistic punctuation and word length distributions |
-| **Formatting** | Bold, italic, bold+italic, strikethrough | Properly nested inline delimiters |
-| **Lists** | Unordered (`-`, `*`), Ordered (`1.`), Task lists (`- [ ]`, `- [x]`) | Configurable item counts and nesting depth |
-| **Code** | Inline code, fenced code blocks | Adaptive backtick/tilde fences, syntax highlighting tags |
+| **Headings** | ATX (`#`), Setext (`===`, `---`) | Levels 1–6, closed sequences, hierarchical validation |
+| **Text** | Paragraphs, soft breaks, hard breaks (`  ` / `\`) | Realistic punctuation and word length distributions |
+| **Formatting** | Bold, italic, bold+italic, strikethrough | Properly nested inline delimiters (`*`, `_`, `~~`) |
+| **Lists** | Unordered (`-`, `*`, `+`), Ordered (`1.`, `1)`), Task lists | Tight and loose spacing, arbitrary start numbers, deep nesting |
+| **Code** | Indented blocks (4-space), fenced blocks (```` ``` ````, `~~~`) | Adaptive fence lengths, syntax highlighting language tags |
 | **Tables** | Headers, rows, cell alignment (`:---`, `:---:`, `---:`) | Pipe escaping, inline formatting inside cells |
-| **Links** | Inline (`[text](url)`), reference (`[text][id]`), autolinks | Target validation, custom protocols |
-| **Images** | Inline images, reference images | Generated placeholder URLs and descriptive alt text |
+| **Links** | Inline (`[text](url)`), full reference, collapsed, shortcut, autolinks | Target validation, custom protocols, angle brackets `<url>` |
+| **Images** | Inline images, reference images (full, collapsed, shortcut) | Generated placeholder URLs and descriptive alt text |
 | **Quotes** | Blockquotes, nested blockquotes (`> >`) | Multiline continuation support |
-| **Separators** | Horizontal rules (`---`, `***`, `___`) | Thematic section breaks |
-| **References** | Link reference definitions, footnotes (`[^1]`) | Bottom-of-document anchor placement |
-| **HTML** | Inline tags, raw blocks, `<details>` accordion | CommonMark and GFM compliance |
+| **Separators** | Thematic breaks / Horizontal rules (`---`, `***`, `___`) | Section breaks with variable spacing |
+| **References** | Link reference definitions, footnotes (`[^1]`) | Multiline definitions, title delimiters (`"`, `'`, `()`) |
+| **HTML** | All 7 HTML block types, inline tags, `<details>` accordion | Full standard compliance |
+| **Escapes** | Backslash escapes, entity & numeric character references | Escaping all 12 ASCII punctuation symbols, `&copy;`, `&#38;` |
 | **Extensions** | Math (`$...$`), Mermaid diagrams, Admonitions | Dialect-specific or renderer plugins |
 | **Metadata** | YAML (`---`) or TOML (`+++`) front matter | Header metadata generation |
 

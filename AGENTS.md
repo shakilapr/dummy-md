@@ -11,7 +11,7 @@ Every contribution must strictly adhere to these core invariants:
 ### 1.1 AST-First Construction
 > **NEVER generate raw Markdown strings in an Element Generator.**
 
-- All generators produce typed `MarkdownNode` instances (e.g., `Paragraph`, `Heading`, `Table`, `CodeBlock`).
+- All generators produce typed `MarkdownNode` instances (e.g., `Paragraph`, `Heading`, `Table`, `FencedCodeBlock`, `ListBlock`).
 - The serialization of characters, delimiter escaping, fence delimiters, list indentation, and pipe alignment belongs **exclusively** to the `Renderer` layer (`dummy_md.renderers`).
 
 ### 1.2 Strict Determinism
@@ -73,11 +73,12 @@ dummy-md/
 │       │   ├── code.py
 │       │   ├── links.py
 │       │   ├── images.py
+│       │   ├── html.py
 │       │   └── quotes.py
 │       │
 │       ├── renderers/       # AST to Markdown text serializers
 │       │   ├── base.py      # Base renderer & escaping utilities
-│       │   ├── commonmark.py# Strict CommonMark renderer
+│       │   ├── standard.py  # Strict standard specification renderer
 │       │   └── gfm.py       # GitHub Flavored Markdown renderer
 │       │
 │       ├── extensions/      # Non-core syntax extensions
@@ -112,13 +113,13 @@ When implementing or extending a Markdown element, follow this exact workflow:
    - Retrieve words or phrases via `context.text_engine`.
    - Use `context.rng` for all random decisions.
    - Return the constructed AST node.
-4. **Renderer Implementation:** Add the node formatting logic in `dummy_md.renderers.gfm` (and `commonmark` if applicable):
+4. **Renderer Implementation:** Add the node formatting logic in `dummy_md.renderers.gfm` (and `dummy_md.renderers.standard` if applicable):
    - Escape literal markdown characters where required.
    - Format required spacing and newline boundaries.
 5. **Registration:** Register the element generator in `dummy_md.core.registry.registry`.
 6. **Tests:**
    - Unit test the generator in `tests/test_elements.py`.
-   - Add parser verification test using `markdown-it-py` to ensure output parses into the expected semantic tokens.
+   - Add parser verification test using standard parsers (`markdown-it-py`) to ensure output parses into the expected semantic tokens.
 
 ---
 
