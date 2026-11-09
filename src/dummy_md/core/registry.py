@@ -34,16 +34,6 @@ class ElementGenerator(Protocol):
     def generate(self, context: GenerationContext) -> BlockNode: ...
 
 
-@runtime_checkable
-class PayloadProvider(Protocol):
-    """Body-text provider for payload features (code, math, diagrams, metadata)."""
-
-    @property
-    def payload_ids(self) -> frozenset[str]: ...
-
-    def render(self, context: GenerationContext) -> str: ...
-
-
 class Registry:
     """Mutable registry with explicit, conflict-checked registration."""
 
@@ -56,7 +46,6 @@ class Registry:
     ) -> None:
         self._features: dict[str, FeatureSpec] = {}
         self._generators: dict[str, ElementGenerator] = {}
-        self._payloads: dict[str, PayloadProvider] = {}
         self._renderers: dict[str, RendererFactory] = dict(
             RENDERERS if renderers is None else renderers
         )
@@ -142,15 +131,6 @@ class Registry:
 
     def renderer_names(self) -> tuple[str, ...]:
         return tuple(sorted(self._renderers))
-
-    # -- payloads ---------------------------------------------------------
-    def register_payload(self, payload: PayloadProvider) -> None:
-        for payload_id in payload.payload_ids:
-            if payload_id in self._payloads:
-                raise ConfigurationError(
-                    f"payload {payload_id!r} is already registered"
-                )
-            self._payloads[payload_id] = payload
 
     # -- dialects ---------------------------------------------------------
     def dialect(self, name: str) -> Dialect:
