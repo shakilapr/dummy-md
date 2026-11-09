@@ -57,6 +57,16 @@ class Generator:
             feature_id: self.registry.feature(feature_id).default_weight
             for feature_id in selected
         }
+        unknown = sorted(
+            set(self.spec.elements) - set(self.registry.generator_families())
+        )
+        if unknown:
+            raise ConfigurationError(
+                "unknown element family(ies): "
+                + ", ".join(unknown)
+                + "; registered families: "
+                + ", ".join(self.registry.generator_families())
+            )
         for feature_id, weight in self.spec.feature_weights.items():
             if feature_id not in self.registry.features:
                 raise ConfigurationError(
