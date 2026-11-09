@@ -7,7 +7,7 @@ built and verified. Feature ids refer to the machine-readable catalog in
 Legend: `[x]` implemented and tested · `[ ]` planned · `[-]` deliberately out of scope for now.
 
 **Status:** 423 catalogued targets, 297 implemented (129 CommonMark, 163 GFM, 297 extended).
-359 tests, `mypy --strict` clean, `ruff` clean.
+380 tests, `mypy --strict` clean, `ruff` clean.
 
 ---
 
@@ -97,6 +97,7 @@ Legend: `[x]` implemented and tested · `[ ]` planned · `[-]` deliberately out 
       `--feature-weight`, `--line-ending`, `--no-heading-skeleton`, `--no-frontmatter`.
 - [x] 76 customization tests covering every seam, every option family and CLI flag errors.
 - [x] 22 fidelity tests proving implemented features reach rendered output.
+- [x] 19 Pandoc-backed tests asserting the AST node a real parser produces.
 
 ## M7 — Fidelity audit `[x]`
 
@@ -141,7 +142,9 @@ Added the missing core and Pandoc-style syntax that the existing AST could expre
   row/column spans, and markdown-in-HTML containers.
 - Diagrams: 21 further Mermaid families plus Graphviz, PlantUML and D2 fence engines.
 
-88 fidelity tests assert each new construct reaches rendered output.
+90 fidelity tests assert each new construct reaches rendered output; 19 further tests
+re-parse the output with Pandoc and assert the intended AST node (skipped when Pandoc is
+not installed).
 
 ## Next up
 

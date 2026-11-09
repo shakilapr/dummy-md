@@ -338,6 +338,10 @@ python -m venv .venv
 The design is specified in [`ARCHITECTURE.md`](ARCHITECTURE.md); build status is tracked in
 [`work-plan.md`](work-plan.md); contributor rules are in [`AGENTS.md`](AGENTS.md).
 
+`tests/test_pandoc_fidelity.py` re-parses generated output with [Pandoc](https://pandoc.org)
+and asserts the resulting AST node. Those tests skip when `pandoc` is not on `PATH`; install it
+to get the full parser-level verification.
+
 ## License
 
 MIT.
