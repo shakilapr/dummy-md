@@ -7,7 +7,7 @@ built and verified. Feature ids refer to the machine-readable catalog in
 Legend: `[x]` implemented and tested · `[ ]` planned · `[-]` deliberately out of scope for now.
 
 **Status:** 423 catalogued targets, 228 implemented (117 CommonMark, 151 GFM, 228 extended).
-270 tests, `mypy --strict` clean, `ruff` clean.
+293 tests, `mypy --strict` clean, `ruff` clean.
 
 ---
 
@@ -94,6 +94,32 @@ Legend: `[x]` implemented and tested · `[ ]` planned · `[-]` deliberately out 
 - [x] CLI flags for every knob: `--option`, `--element-weight`, `--min-count`,
       `--feature-weight`, `--line-ending`, `--no-heading-skeleton`, `--no-frontmatter`.
 - [x] 76 customization tests covering every seam, every option family and CLI flag errors.
+- [x] 22 fidelity tests proving implemented features reach rendered output.
+
+## M7 — Fidelity audit `[x]`
+
+Every feature marked `implemented` must be reachable from generator code and must appear in
+rendered output. The audit found and fixed:
+
+- Inline math (`math.inline.dollar`, `math.inline.paren`) had no emitter; paragraphs now build
+  `Math` nodes, and the renderer guard checks the delimiter that is actually emitted.
+- Inline footnotes (`footnote.inline`) had no emitter; added an `InlineFootnote` node and
+  `^[text]` rendering.
+- `code.in_blockquote`, `code.in_list` and `list.in_blockquote` were owned by generators that
+  never produced those nestings; the catalog now points them at the quoting/listing generator
+  that does.
+- `blockquote.lazy` had no implementation; `Blockquote` carries a `lazy` flag and the renderer
+  emits unprefixed continuation lines.
+- `heading.levels.skipped` never allowed a skip; the feature now feeds the heading tracker.
+- `table.cell.escaped_pipe`, `table.columns.many` and `table.payload.numeric` were ignored;
+  each now gates its construct and numeric cells no longer leak without the feature.
+- `FootnoteOptions.multiline_ratio`, `QuoteOptions.nested_ratio`,
+  `QuoteOptions.extra_block_ratio` were dead knobs; they are honoured now.
+- `FrontMatterOptions.include_ratio` and the unused payload-registry API were removed.
+- Renderer guards were corrected for callout kinds, task lists, LaTeX environments and
+  code-vs-heading attributes; setext headings place attributes before the underline.
+- A static test asserts every implemented feature id is referenced by generator or renderer
+  code, so a feature cannot be declared implemented again without a code path.
 
 ---
 

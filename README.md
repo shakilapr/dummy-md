@@ -62,6 +62,10 @@ markdown = dummy_md.generate(
 Unknown or unimplemented feature ids raise `ConfigurationError`; asking CommonMark for
 `table.pipe` raises `DialectError` listing the dialects that support it.
 
+`include` decides which syntax is *allowed*, not which syntax must appear: per-generator
+options (`TableOptions.caption_ratio`, `QuoteOptions.extra_block_ratio`, ...) control how often
+a variant shows up, so a short document may legitimately contain none of a permitted variant.
+
 ### Advanced specification
 
 ```python
@@ -114,7 +118,7 @@ equals `generate()` for the same spec.
 | `commonmark` | CommonMark core: ATX/Setext headings, lists, code, quotes, HTML blocks, reference links, entities |
 | `gfm` | CommonMark + pipe tables, task lists, strikethrough, bare autolinks |
 | `extended` | GFM + heading/code attributes, figure captions, footnotes, math, callouts, Mermaid, front matter |
-| `stress` | `extended` capability set with token-style text for parser stress |
+| `stress` | same capability set as `extended`; the `stress` preset adds token text and deeper nesting |
 
 Counts: 423 catalogued generation targets, 228 currently implemented (117 CommonMark, 151 GFM,
 228 extended).

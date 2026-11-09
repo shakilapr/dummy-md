@@ -201,6 +201,11 @@ Resolution order:
 An unknown or unimplemented id in `include` raises `ConfigurationError` — silent no-ops make
 fixtures lie. `exclude` with no match is also an error, for the same reason.
 
+Selection is a capability filter, not a checklist: `include` decides which syntax may appear,
+while per-generator option ratios decide how often each variant actually appears. A one-block
+document can therefore contain none of a permitted variant; the catalog promises that the
+engine *can* emit a feature, and the fidelity tests prove that path exists.
+
 ---
 
 ## 5. Dialects and Capability Sets
@@ -213,14 +218,13 @@ round-trip tests, not wishes.
 | `commonmark` | CommonMark 0.31 | raw HTML, entities, reference links | `CommonMarkRenderer` |
 | `gfm` | `commonmark` | pipe tables, task lists, strikethrough, extended autolinks | `GFMRenderer` |
 | `extended` | `gfm` | attributes, footnotes, math, mermaid/diagram fences, callouts, front matter | `GFMRenderer` |
-| `stress` | `extended` | token-style text and deep nesting over the same capability set | `GFMRenderer` |
-
-`stress` is the only dialect allowed to combine mutually exclusive syntaxes. Everywhere else,
-incompatible features never coexist.
+| `stress` | `extended` | same capability set; the `stress` preset adds token text and deeper nesting | `GFMRenderer` |
 
 Dialect capability sets are derived from the catalog: every feature declares the dialects that
 may emit it, and a dialect's set is the union of its implemented features. The base chain in the
-table above describes intent; the catalog is the source of truth.
+table above describes intent; the catalog is the source of truth. Generation style (text
+provider, nesting depth) is a spec/preset concern, not a dialect one: `dialect` controls what
+syntax may appear, `preset` controls how it is mixed.
 
 ```python
 DialectSpec(
@@ -342,6 +346,7 @@ classDiagram
     }
     class Blockquote {
         +tuple[BlockNode] children
+        +bool lazy
     }
     class Callout {
         +str kind
@@ -354,7 +359,6 @@ classDiagram
         +tuple[TableCell] header
         +tuple[tuple[TableCell]] rows
         +tuple[str] alignments
-        +str style
         +bool outer_pipes
         +str caption
     }
@@ -416,8 +420,10 @@ classDiagram
     }
     class Math {
         +str expression
-        +bool display
         +str delimiter
+    }
+    class InlineFootnote {
+        +tuple[InlineNode] children
     }
     class MathBlock {
         +str expression
@@ -450,6 +456,7 @@ classDiagram
     InlineNode <|-- Emphasis
     InlineNode <|-- Strikethrough
     InlineNode <|-- CodeSpan
+    InlineNode <|-- InlineFootnote
     InlineNode <|-- Link
     InlineNode <|-- Image
     InlineNode <|-- Autolink
