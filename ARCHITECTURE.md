@@ -239,6 +239,44 @@ Raw HTML (`html.inline`, `html.block.*`, `html.table`) exists in `commonmark`, b
 specifies it. It is excluded from `gfm`-only *profiles* when a preset opts out, but not banned by
 the dialect. Presets, not dialects, express "README-safe" or "no HTML" policies.
 
+### 5.2 Custom dialects
+
+A registry can derive new dialects from an existing one without touching the catalog:
+
+```python
+from dummy_md import Registry
+from dummy_md import elements
+
+registry = Registry()
+elements.register(registry)
+registry.add_dialect(
+    "docs", base="gfm", add=["math.display.dollar"], remove=["html.block"]
+)
+```
+
+Added features must be implemented; removed features must exist in the base. The derived
+capability set is authoritative for selection and for the renderer's capability guard, so
+`generate(dialect="docs", registry=registry, include=["math.display.dollar"])` works even though
+no catalog row mentions `docs`. Renderer names can be overridden per dialect via
+`registry.register_renderer(...)`.
+
+### 5.3 Feature weights and pluggable content
+
+Each feature has a `default_weight`; `DocumentSpec.feature_weights` overrides it. Generators
+that choose between variants (inline formatting, code payloads, link kinds, callout kinds,
+math environments, diagram types, table alignments, list markers, HTML elements) use
+`context.weighted_feature(...)`, so weights are the single knob for variant mix.
+
+Beyond syntax, the content layer is pluggable without subclassing the engine:
+
+- `register_text_style(name, provider)` adds a word source; everything above the word level
+  (sentences, casing, punctuation) is unchanged, so custom styles keep the same layout
+  guarantees.
+- `register_preset(Preset(...))` adds a named bundle of include/exclude rules, element rules
+  and text style, selectable by `generate(preset=...)`.
+- `DocumentSpec.to_json()`, `.from_json()` and `.from_json_file()` make a run reproducible from
+  a fixture file; the CLI `spec` and `--spec` commands use the same format.
+
 ---
 
 ## 6. AST
@@ -492,8 +530,9 @@ Rules:
 | `DirectiveGenerator` | `directive` | `directive.myst.*`, `directive.mkdocs.*` |
 
 Each generator owns an immutable options dataclass in its module (`HeadingOptions`,
-`TableOptions`, ...). Options are validated in `__post_init__` and raise `ConfigurationError`
-with the offending field.
+`TableOptions`, ...). Options are validated when constructed and may be supplied either as the
+dataclass or as a mapping (the form JSON specs use); unknown option keys raise
+`ConfigurationError` naming the valid fields.
 
 ---
 
@@ -610,7 +649,7 @@ One context is threaded through the whole run:
 
 | Unit | Measurement |
 | :-- | :-- |
-| `chars` | characters of serialized output, excluding a trailing newline |
+| `chars` | characters of serialized output, excluding the final line terminator (`\n` or `\r\n`) |
 | `words` | runs of non-whitespace in textual content (markup excluded) |
 | `lines` | newline-separated lines in serialized output |
 | `blocks` | top-level block nodes |

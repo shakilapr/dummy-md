@@ -7,7 +7,7 @@ built and verified. Feature ids refer to the machine-readable catalog in
 Legend: `[x]` implemented and tested · `[ ]` planned · `[-]` deliberately out of scope for now.
 
 **Status:** 423 catalogued targets, 228 implemented (117 CommonMark, 151 GFM, 228 extended).
-194 tests, `mypy --strict` clean, `ruff` clean.
+264 tests, `mypy --strict` clean, `ruff` clean.
 
 ---
 
@@ -21,6 +21,7 @@ Legend: `[x]` implemented and tested · `[ ]` planned · `[-]` deliberately out 
 | M3 Length control | Exact `chars`/`words` hit or `BudgetError` raised | done |
 | M4 Public surface | API, presets, CLI, streaming | done |
 | M5 Extended dialects | Extended features gated by dialect | done for 6 families |
+| M6 Customization | Dialects, renderers, text styles, presets, weights, JSON specs | done |
 
 ---
 
@@ -63,7 +64,7 @@ Legend: `[x]` implemented and tested · `[ ]` planned · `[-]` deliberately out 
 - [x] `config`: `DocumentSpec`, `ElementRule`, `LengthSpec`, validated.
 - [x] `api`: `generate`, `iter_chunks`, `write`, `available_*`, `validate`.
 - [x] `presets`: `default`, `minimal`, `readme`, `tables`, `stress`.
-- [x] `cli`: `generate`, `elements`, `dialects`, `presets`, `validate`.
+- [x] `cli`: `generate`, `spec`, `elements`, `dialects`, `presets`, `validate`.
 
 ## M5 — Extended features `[x]`
 
@@ -76,6 +77,21 @@ Legend: `[x]` implemented and tested · `[ ]` planned · `[-]` deliberately out 
 - [x] Front matter: YAML, TOML, JSON with metadata schemas.
 - [ ] Stress fixtures: escapes, Unicode scripts, CRLF, adjacent delimiters (catalogued, not yet
       selectable).
+
+## M6 — Customization `[x]`
+
+- [x] Derived dialects: `registry.add_dialect(name, base=..., add=..., remove=...)`.
+- [x] Renderer plug-ins: `registry.register_renderer(name, RendererType)`.
+- [x] Text styles: `register_text_style(name, provider)` with built-ins `pseudowords`,
+      `lorem`, `tokens`.
+- [x] Presets: `register_preset(Preset(...))`, selectable through `generate(preset=...)`.
+- [x] Feature weights: `DocumentSpec.feature_weights`, `--feature-weight ID=W`.
+- [x] Per-family option dataclasses with mapping (JSON) support and strict validation.
+- [x] Layout controls: `line_ending`, `trailing_newline`, `section_chars`, `fill_ratio`,
+      `text_seed`, `max_nesting_depth`, `heading_skeleton`, `include_frontmatter`.
+- [x] JSON specs: `DocumentSpec.to_json` / `from_json` / `from_json_file`, CLI `spec` and
+      `--spec`.
+- [x] 70 customization tests covering every seam and every option family.
 
 ---
 

@@ -22,6 +22,8 @@ fences close, list nesting indents correctly, and reference links resolve.
   `PYTHONHASHSEED`.
 - **Length control:** target `chars`, `words`, `lines`, `blocks`, or `bytes`, in approximate or
   exact mode.
+- **Customizable:** pluggable dialects, renderers, text styles and presets; per-element option
+  dataclasses; feature-level weights; JSON specs for reproducible fixtures.
 - **Zero runtime dependencies:** the core uses only the standard library.
 
 ## Installation
@@ -126,7 +128,7 @@ dummy-md elements --all             # full catalog, unimplemented ids marked
 
 | Unit | Measures |
 | :-- | :-- |
-| `chars` | serialized characters, excluding the trailing newline |
+| `chars` | serialized characters, excluding the final line terminator (`\n` or `\r\n`) |
 | `words` | words in textual content, excluding markup |
 | `lines` | newline-delimited output lines |
 | `blocks` | top-level blocks |
@@ -150,12 +152,143 @@ dummy_md.generate(length=3000, preset="readme", seed=1)
 `default`, `minimal`, `readme`, `tables`, `stress`. `dummy_md.available_presets()` returns the
 descriptions.
 
+Custom presets are registered once and selectable everywhere:
+
+```python
+from dummy_md import Preset, register_preset
+
+register_preset(
+    Preset(
+        name="docs",
+        description="Documentation-shaped fixture",
+        include=("heading.*", "paragraph.*", "code.*", "list.*"),
+        exclude=("html.*",),
+        text_style="lorem",
+    )
+)
+dummy_md.generate(length=4000, preset="docs")
+```
+
+## Customization
+
+Everything that decides output is addressable without forking the library.
+
+**Element options.** Every generator family owns a frozen options dataclass.
+
+```python
+from dummy_md import DocumentSpec, ElementRule
+from dummy_md.elements import (
+    CodeOptions,
+    HeadingOptions,
+    ListOptions,
+    MathOptions,
+    ParagraphOptions,
+    TableOptions,
+)
+
+spec = DocumentSpec(
+    seed=7,
+    include=["heading.*", "paragraph.*", "list.*", "table.*", "code.*", "math.*"],
+    elements={
+        "heading": ElementRule(options=HeadingOptions(levels=(1, 2), style="setext")),
+        "paragraph": ElementRule(
+            options=ParagraphOptions(min_sentences=2, max_sentences=5, inline_ratio=0.4)
+        ),
+        "list": ElementRule(options=ListOptions(min_items=2, max_items=6)),
+        "table": ElementRule(
+            options=TableOptions(min_rows=3, max_rows=8, min_columns=2, max_columns=5)
+        ),
+        "code": ElementRule(options=CodeOptions(indented_ratio=0.0, long_fence_ratio=0.3)),
+        "math": ElementRule(options=MathOptions(delimiter="dollar")),
+    },
+)
+```
+
+Options may be dataclasses or plain mappings (the form JSON uses); unknown fields raise
+`ConfigurationError` naming the valid ones.
+
+**Feature weights.** Nudge how often individual variants appear.
+
+```python
+dummy_md.generate(
+    length=10_000,
+    seed=99,
+    feature_weights={
+        "inline.emphasis.asterisk": 3.0,
+        "inline.strong.asterisk": 2.0,
+        "list.task.checked": 0.5,
+        "math.display.dollar": 4.0,
+    },
+)
+```
+
+**Custom dialects and renderers.** Derive a dialect from a built-in one and register it.
+
+```python
+from dummy_md import Registry, elements
+from dummy_md.renderers import GFMRenderer
+
+registry = Registry()
+elements.register(registry)
+registry.add_dialect(
+    "docs", base="gfm", add=["math.display.dollar"], remove=["html.block"]
+)
+registry.register_renderer("gfm-strict", GFMRenderer)
+registry.add_dialect("strict", base="gfm", renderer="gfm-strict")
+
+markdown = dummy_md.generate(length=2000, dialect="docs", registry=registry)
+```
+
+**Custom text styles.** Supply your own word source; sentence structure, casing and punctuation
+are handled by the content engine.
+
+```python
+from random import Random
+
+from dummy_md import register_text_style
+
+
+class WordList:
+    name = "words"
+    WORDS = ("alpha", "bravo", "charlie", "delta")
+
+    def word(self, rng: Random) -> str:
+        return rng.choice(self.WORDS)
+
+
+register_text_style("words", WordList())
+dummy_md.generate(length=1200, text_style="words")
+```
+
+**Layout controls.** `line_ending="crlf"`, `trailing_newline=False`, `section_chars=...`,
+`fill_ratio=...`, `text_seed=...`, `max_nesting_depth=...`, plus `heading_skeleton` and
+`include_frontmatter` switches are all part of `DocumentSpec`.
+
+**JSON specs.** Persist a run and reproduce it exactly.
+
+```python
+from dummy_md import DocumentSpec
+
+spec = DocumentSpec(seed=5, include=("table.*",), length=dummy_md.LengthSpec(2000))
+spec.to_json("fixture-spec.json")          # also returns the JSON text
+same = DocumentSpec.from_json_file("fixture-spec.json")
+assert same.to_dict() == spec.to_dict()
+```
+
+```bash
+dummy-md spec --chars 5000 --seed 42 > spec.json
+dummy-md generate --spec spec.json
+```
+
 ## Command line
 
 ```bash
 dummy-md generate --chars 10000 --dialect gfm --seed 42
 dummy-md generate --words 2500 --preset tables -o tables.md
 dummy-md generate --bytes 2MB --exclude "html.*" --seed 1337
+dummy-md generate --chars 4000 --feature-weight "list.task=3" --line-ending crlf
+dummy-md spec --chars 5000 --seed 42 > spec.json
+dummy-md generate --spec spec.json -o fixture.md
 dummy-md elements --dialect extended
 dummy-md dialects
 dummy-md presets
