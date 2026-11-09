@@ -27,7 +27,7 @@ from dummy_md.core.nodes import (
     StyledSpan,
     Text,
 )
-from dummy_md.elements._util import resolve_options
+from dummy_md.elements._util import check_range, check_ratio, resolve_options
 
 
 def _crossref_target(text: str) -> str:
@@ -117,6 +117,23 @@ class ParagraphOptions:
     emoji_ratio: float = 0.25
     block_ratio: float = 0.35
 
+    def __post_init__(self) -> None:
+        check_range(self.min_sentences, self.max_sentences, "sentences")
+        if self.min_sentences < 1:
+            raise ValueError("paragraphs need at least one sentence")
+        check_range(self.sentence_min_words, self.sentence_max_words, "sentence words")
+        if self.sentence_min_words < 1:
+            raise ValueError("sentences need at least one word")
+        if self.max_inline < 0:
+            raise ValueError("max_inline must be non-negative")
+        for name in (
+            "inline_ratio",
+            "break_ratio",
+            "emoji_ratio",
+            "block_ratio",
+        ):
+            check_ratio(getattr(self, name), name)
+
 
 class ParagraphGenerator:
     """Produces paragraphs, optionally multi-line and inline-decorated."""
@@ -149,8 +166,17 @@ class ParagraphGenerator:
                 and context.rng.random() < options.inline_ratio
             )
             if use_decoration:
-                builder = _INLINE_BUILDERS[context.weighted_feature(feature_ids)]
-                children.extend(self._decorate(context, builder, options))
+                chosen = context.weighted_feature(feature_ids)
+                builder = _INLINE_BUILDERS[chosen]
+                children.extend(
+                    self._decorate(
+                        context,
+                        builder,
+                        options,
+                        single_word=chosen
+                        in {"inline.superscript", "inline.subscript"},
+                    )
+                )
                 decorations += 1
             else:
                 children.append(Text(self._sentence(context, options)))
@@ -232,13 +258,17 @@ class ParagraphGenerator:
         context: GenerationContext,
         builder: Callable[[str], InlineNode],
         options: ParagraphOptions,
+        *,
+        single_word: bool = False,
     ) -> tuple[InlineNode, ...]:
         sentence = self._sentence(context, options)
         words = sentence.split(" ")
         if len(words) < 5:
             return (Text(sentence),)
         start = context.rng.randint(1, len(words) - 3)
-        span = context.rng.randint(1, min(2, len(words) - start - 1))
+        span = (
+            1 if single_word else context.rng.randint(1, min(2, len(words) - start - 1))
+        )
         end = start + span
         before = " ".join(words[:start]) + " "
         inner = " ".join(words[start:end])

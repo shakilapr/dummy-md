@@ -20,7 +20,7 @@ from dummy_md.core.nodes import (
     Paragraph,
     Text,
 )
-from dummy_md.elements._util import resolve_options
+from dummy_md.elements._util import check_range, check_ratio, resolve_options
 
 
 @dataclass(frozen=True, slots=True)
@@ -35,6 +35,23 @@ class ListOptions:
     multi_paragraph_ratio: float = 0.15
     extra_block_ratio: float = 0.18
     definition_ratio: float = 0.25
+
+    def __post_init__(self) -> None:
+        check_range(self.min_items, self.max_items, "list items")
+        if self.min_items < 1:
+            raise ValueError("lists need at least one item")
+        if self.max_depth < 1:
+            raise ValueError("max_depth must be at least 1")
+        for name in (
+            "nested_ratio",
+            "tight_ratio",
+            "task_ratio",
+            "ordered_ratio",
+            "multi_paragraph_ratio",
+            "extra_block_ratio",
+            "definition_ratio",
+        ):
+            check_ratio(getattr(self, name), name)
 
 
 class ListGenerator:

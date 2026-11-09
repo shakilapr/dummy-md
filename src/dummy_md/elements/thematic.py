@@ -20,6 +20,12 @@ _CHARACTERS: dict[str, Literal["-", "*", "_"]] = {
 class ThematicBreakOptions:
     spacings: tuple[int, ...] = (0, 0, 0, 1, 2)
 
+    def __post_init__(self) -> None:
+        if not self.spacings:
+            raise ValueError("spacings must not be empty")
+        if any(spacing < 0 for spacing in self.spacings):
+            raise ValueError("spacings must be non-negative")
+
 
 class ThematicBreakGenerator:
     family = "thematic_break"

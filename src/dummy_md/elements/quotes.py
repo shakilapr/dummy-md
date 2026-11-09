@@ -17,7 +17,7 @@ from dummy_md.core.nodes import (
     Paragraph,
     Text,
 )
-from dummy_md.elements._util import resolve_options
+from dummy_md.elements._util import check_ratio, resolve_options
 from dummy_md.elements.paragraphs import ParagraphGenerator
 from dummy_md.elements.tables import TableGenerator
 
@@ -54,6 +54,17 @@ class QuoteOptions:
     foldable_ratio: float = 0.3
     nested_callout_ratio: float = 0.2
     lazy_ratio: float = 0.6
+
+    def __post_init__(self) -> None:
+        for name in (
+            "nested_ratio",
+            "extra_block_ratio",
+            "title_ratio",
+            "foldable_ratio",
+            "nested_callout_ratio",
+            "lazy_ratio",
+        ):
+            check_ratio(getattr(self, name), name)
 
 
 class QuoteGenerator:

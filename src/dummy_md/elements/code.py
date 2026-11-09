@@ -7,7 +7,7 @@ from typing import Literal
 
 from dummy_md.core.context import GenerationContext
 from dummy_md.core.nodes import Attributes, BlockNode, CodeBlock
-from dummy_md.elements._util import resolve_options
+from dummy_md.elements._util import check_ratio, resolve_options
 from dummy_md.elements.payloads import CODE_PAYLOADS, Payload
 
 
@@ -18,6 +18,16 @@ class CodeOptions:
     info_ratio: float = 0.85
     attribute_ratio: float = 0.2
     caption_ratio: float = 0.15
+
+    def __post_init__(self) -> None:
+        for name in (
+            "indented_ratio",
+            "long_fence_ratio",
+            "info_ratio",
+            "attribute_ratio",
+            "caption_ratio",
+        ):
+            check_ratio(getattr(self, name), name)
 
 
 class CodeBlockGenerator:

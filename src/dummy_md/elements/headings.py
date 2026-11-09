@@ -7,7 +7,7 @@ from typing import Literal
 
 from dummy_md.core.context import GenerationContext
 from dummy_md.core.nodes import Attributes, BlockNode, Heading, InlineNode, Text
-from dummy_md.elements._util import resolve_options
+from dummy_md.elements._util import check_ratio, resolve_options
 
 
 @dataclass(frozen=True, slots=True)
@@ -20,6 +20,14 @@ class HeadingOptions:
     allow_skips: bool = False
     attribute_ratio: float = 0.2
     repeat_ratio: float = 0.12
+
+    def __post_init__(self) -> None:
+        if not self.levels:
+            raise ValueError("heading levels must not be empty")
+        if any(not 1 <= level <= 6 for level in self.levels):
+            raise ValueError(f"heading levels must be 1..6, got {self.levels}")
+        for name in ("closed_ratio", "setext_ratio", "attribute_ratio", "repeat_ratio"):
+            check_ratio(getattr(self, name), name)
 
 
 class HeadingGenerator:

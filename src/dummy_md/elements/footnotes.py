@@ -12,12 +12,15 @@ from dummy_md.core.nodes import (
     Paragraph,
     Text,
 )
-from dummy_md.elements._util import resolve_options
+from dummy_md.elements._util import check_ratio, resolve_options
 
 
 @dataclass(frozen=True, slots=True)
 class FootnoteOptions:
     multiline_ratio: float = 0.3
+
+    def __post_init__(self) -> None:
+        check_ratio(self.multiline_ratio, "multiline_ratio")
 
 
 class FootnoteGenerator:

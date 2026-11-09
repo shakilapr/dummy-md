@@ -7,7 +7,7 @@ from typing import Literal
 
 from dummy_md.core.context import GenerationContext
 from dummy_md.core.nodes import BlockNode, CodeBlock, MathBlock, MathMacros
-from dummy_md.elements._util import resolve_options
+from dummy_md.elements._util import check_ratio, resolve_options
 from dummy_md.elements.payloads import MATH_ENVIRONMENTS, MATH_PAYLOADS
 
 
@@ -19,6 +19,18 @@ class MathOptions:
     delimiter: Literal["dollar", "bracket", "random"] = "random"
     label_ratio: float = 0.5
     macro_ratio: float = 0.15
+
+    def __post_init__(self) -> None:
+        if self.delimiter not in {"dollar", "bracket", "random"}:
+            raise ValueError(f"unknown math delimiter {self.delimiter!r}")
+        for name in (
+            "fence_ratio",
+            "environment_ratio",
+            "payload_ratio",
+            "label_ratio",
+            "macro_ratio",
+        ):
+            check_ratio(getattr(self, name), name)
 
 
 class MathGenerator:

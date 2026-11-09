@@ -16,7 +16,7 @@ from dummy_md.core.nodes import (
     Text,
     WikiLink,
 )
-from dummy_md.elements._util import resolve_options
+from dummy_md.elements._util import check_ratio, resolve_options
 
 _REFERENCE_FEATURES = (
     "link.reference.full",
@@ -33,6 +33,14 @@ class LinkOptions:
     title_ratio: float = 0.35
     reference_ratio: float = 0.4
     wiki_ratio: float = 0.4
+
+    def __post_init__(self) -> None:
+        if self.min_links < 1:
+            raise ValueError("min_links must be at least 1")
+        if self.max_links < self.min_links:
+            raise ValueError("max_links must be >= min_links")
+        for name in ("title_ratio", "reference_ratio", "wiki_ratio"):
+            check_ratio(getattr(self, name), name)
 
 
 class LinkGenerator:

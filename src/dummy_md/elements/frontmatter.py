@@ -42,6 +42,10 @@ _META_FIELDS: tuple[str, ...] = (
 class FrontMatterOptions:
     max_fields: int = 8
 
+    def __post_init__(self) -> None:
+        if self.max_fields < 1:
+            raise ValueError("max_fields must be at least 1")
+
 
 class FrontMatterGenerator:
     family = "frontmatter"

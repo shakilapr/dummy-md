@@ -13,6 +13,19 @@ from dummy_md.exceptions import ConfigurationError
 T = TypeVar("T")
 
 
+def check_ratio(value: float, name: str) -> None:
+    """Ratios must stay inside ``[0, 1]`` or they silently skew generation."""
+    if not 0 <= value <= 1:
+        raise ValueError(f"{name} must be between 0 and 1, got {value}")
+
+
+def check_range(minimum: int, maximum: int, name: str) -> None:
+    if minimum < 0:
+        raise ValueError(f"{name} minimum must be non-negative")
+    if maximum < minimum:
+        raise ValueError(f"{name} maximum must be >= minimum")
+
+
 def resolve_options(
     context: GenerationContext, family: str, default: T, option_type: type[T]
 ) -> T:
@@ -48,5 +61,5 @@ def build_options(
     kwargs = {str(key): value for key, value in data.items()}
     try:
         return option_type(**kwargs)
-    except TypeError as error:
+    except (TypeError, ValueError) as error:
         raise ConfigurationError(f"invalid options for {family!r}: {error}") from error

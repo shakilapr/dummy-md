@@ -19,7 +19,7 @@ from dummy_md.core.nodes import (
     TableCell,
     Text,
 )
-from dummy_md.elements._util import resolve_options
+from dummy_md.elements._util import check_ratio, resolve_options
 
 
 @dataclass(frozen=True, slots=True)
@@ -32,6 +32,19 @@ class ImageOptions:
     in_list_ratio: float = 0.2
     in_link_ratio: float = 0.2
     figure_ratio: float = 0.3
+
+    def __post_init__(self) -> None:
+        for name in (
+            "title_ratio",
+            "remote_ratio",
+            "reference_ratio",
+            "size_ratio",
+            "in_table_ratio",
+            "in_list_ratio",
+            "in_link_ratio",
+            "figure_ratio",
+        ):
+            check_ratio(getattr(self, name), name)
 
 
 class ImageGenerator:

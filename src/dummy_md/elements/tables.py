@@ -21,7 +21,7 @@ from dummy_md.core.nodes import (
     TableStyle,
     Text,
 )
-from dummy_md.elements._util import resolve_options
+from dummy_md.elements._util import check_range, check_ratio, resolve_options
 
 _CELL_STYLES = (
     "table.cell.bold",
@@ -56,6 +56,25 @@ class TableOptions:
     style_ratio: float = 0.3
     min_cell_words: int = 1
     max_cell_words: int = 3
+
+    def __post_init__(self) -> None:
+        check_range(self.min_rows, self.max_rows, "table rows")
+        check_range(self.min_columns, self.max_columns, "table columns")
+        if self.min_columns < 1:
+            raise ValueError("tables need at least one column")
+        check_range(self.min_cell_words, self.max_cell_words, "cell words")
+        if self.min_cell_words < 1:
+            raise ValueError("cells need at least one word")
+        for name in (
+            "numeric_ratio",
+            "empty_ratio",
+            "inline_ratio",
+            "header_only_ratio",
+            "caption_ratio",
+            "many_ratio",
+            "style_ratio",
+        ):
+            check_ratio(getattr(self, name), name)
 
 
 class TableGenerator:

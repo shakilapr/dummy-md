@@ -448,6 +448,10 @@ ENGINE_INFOS: dict[str, str] = {
 class DiagramOptions:
     fence_info: str = "mermaid"
 
+    def __post_init__(self) -> None:
+        if not self.fence_info.strip():
+            raise ValueError("diagram fence_info must not be empty")
+
 
 class DiagramGenerator:
     family = "diagram"
