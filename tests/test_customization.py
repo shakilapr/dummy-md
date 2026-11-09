@@ -9,7 +9,13 @@ import pytest
 
 import dummy_md
 from dummy_md import DocumentSpec, ElementRule, Generator, LengthSpec
-from dummy_md.cli import main, parse_weights
+from dummy_md.cli import (
+    main,
+    parse_element_weights,
+    parse_min_counts,
+    parse_options,
+    parse_weights,
+)
 from dummy_md.config import LineEnding
 from dummy_md.core.budget import count_words, measure_text
 from dummy_md.core.nodes import (
@@ -569,6 +575,102 @@ def test_cli_feature_weight_flag() -> None:
         parse_weights(["table.pipe"])
     with pytest.raises(dummy_md.DummyMdError):
         parse_weights(["table.pipe=0"])
+
+
+def test_parse_options_flag() -> None:
+    assert parse_options(
+        ["heading.style=setext", "table.min_rows=2", "list.items=[1,2]"]
+    ) == {
+        "heading": {"style": "setext"},
+        "table": {"min_rows": 2},
+        "list": {"items": [1, 2]},
+    }
+    with pytest.raises(dummy_md.DummyMdError):
+        parse_options(["heading.style"])
+    with pytest.raises(dummy_md.DummyMdError):
+        parse_options(["=setext"])
+
+
+def test_cli_option_flag_changes_output(capsys: pytest.CaptureFixture[str]) -> None:
+    exit_code = main(
+        [
+            "generate",
+            "--chars",
+            "400",
+            "--seed",
+            "2",
+            "--no-heading-skeleton",
+            "--include",
+            "heading.atx.h2",
+            "--include",
+            "heading.setext.h2",
+            "--option",
+            "heading.style=setext",
+        ]
+    )
+    assert exit_code == 0
+    assert "\n---" in capsys.readouterr().out
+
+
+def test_cli_element_weight_and_min_count(capsys: pytest.CaptureFixture[str]) -> None:
+    exit_code = main(
+        [
+            "spec",
+            "--chars",
+            "500",
+            "--element-weight",
+            "table=3",
+            "--min-count",
+            "paragraph=2",
+        ]
+    )
+    assert exit_code == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["elements"]["table"]["weight"] == 3.0
+    assert payload["elements"]["paragraph"]["min_count"] == 2
+
+
+def test_element_flag_parsing_errors() -> None:
+    with pytest.raises(dummy_md.DummyMdError):
+        parse_element_weights(["table"])
+    with pytest.raises(dummy_md.DummyMdError):
+        parse_element_weights(["table=0"])
+    with pytest.raises(dummy_md.DummyMdError):
+        parse_min_counts(["paragraph=-1"])
+    with pytest.raises(dummy_md.DummyMdError):
+        parse_min_counts(["paragraph=two"])
+
+
+def test_unknown_element_family_errors() -> None:
+    spec = DocumentSpec(
+        seed=1,
+        include=["paragraph.single_line"],
+        length=LengthSpec(200),
+        elements={"nope": ElementRule()},
+    )
+    with pytest.raises(ConfigurationError, match="unknown element family"):
+        Generator(spec).generate()
+
+
+def test_cli_option_flag_rejects_unknown_field(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    assert (
+        main(
+            [
+                "generate",
+                "--chars",
+                "200",
+                "--no-heading-skeleton",
+                "--include",
+                "heading.atx.h2",
+                "--option",
+                "heading.bogus=1",
+            ]
+        )
+        == 1
+    )
+    assert "unknown option" in capsys.readouterr().err
 
 
 def test_cli_rejects_unknown_spec_keys(
