@@ -5,7 +5,7 @@ from __future__ import annotations
 import argparse
 import json
 import sys
-from collections.abc import Mapping, Sequence
+from collections.abc import Sequence
 from pathlib import Path
 
 import dummy_md
@@ -178,10 +178,7 @@ def _print_spec(args: argparse.Namespace) -> int:
 
 def _document_spec(args: argparse.Namespace) -> DocumentSpec:
     if args.spec:
-        payload = json.loads(Path(args.spec).read_text(encoding="utf-8"))
-        if not isinstance(payload, Mapping):
-            raise DummyMdError("spec file must contain a JSON object")
-        spec = DocumentSpec.from_dict(payload)
+        spec = DocumentSpec.from_json_file(args.spec)
     else:
         length, unit = _amount(args)
         spec = DocumentSpec(

@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
 from dataclasses import asdict, dataclass, field, is_dataclass
+from json import JSONDecodeError, dumps, loads
+from pathlib import Path
 from types import MappingProxyType
 from typing import Any, Literal, cast
 
@@ -175,6 +177,39 @@ class DocumentSpec:
             "section_chars": self.section_chars,
             "fill_ratio": self.fill_ratio,
         }
+
+    def to_json(self, path: str | Path | None = None, *, indent: int = 2) -> str:
+        """Serialize the spec to JSON, optionally writing it to ``path``.
+
+        The returned text (and the file, when a path is given) round-trips
+        through :meth:`from_json`.
+        """
+        payload = dumps(self.to_dict(), indent=indent)
+        if path is not None:
+            Path(path).write_text(payload + "\n", encoding="utf-8")
+        return payload
+
+    @classmethod
+    def from_json(cls, text: str) -> DocumentSpec:
+        """Parse a spec from JSON text produced by :meth:`to_json`."""
+        try:
+            data = loads(text)
+        except JSONDecodeError as error:
+            raise ConfigurationError(f"invalid spec JSON: {error}") from error
+        if not isinstance(data, Mapping):
+            raise ConfigurationError("spec JSON must be an object")
+        return cls.from_dict(cast(Mapping[str, object], data))
+
+    @classmethod
+    def from_json_file(cls, path: str | Path) -> DocumentSpec:
+        """Read and parse a spec JSON file."""
+        try:
+            text = Path(path).read_text(encoding="utf-8")
+        except OSError as error:
+            raise ConfigurationError(
+                f"cannot read spec file {path}: {error}"
+            ) from error
+        return cls.from_json(text)
 
     @classmethod
     def from_dict(cls, data: Mapping[str, object]) -> DocumentSpec:
