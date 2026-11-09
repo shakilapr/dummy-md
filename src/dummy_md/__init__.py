@@ -10,8 +10,9 @@ from dummy_md.api import (
     validate,
     write,
 )
-from dummy_md.config import DocumentSpec, ElementRule, LengthSpec
+from dummy_md.config import DocumentSpec, ElementRule, LengthSpec, LineEnding
 from dummy_md.core.engine import Generator
+from dummy_md.core.registry import Registry, registry
 from dummy_md.exceptions import (
     BudgetError,
     ConfigurationError,
@@ -31,6 +32,8 @@ __all__ = [
     "ElementRule",
     "Generator",
     "LengthSpec",
+    "LineEnding",
+    "Registry",
     "RenderError",
     "ValidationReport",
     "__version__",
@@ -39,6 +42,7 @@ __all__ = [
     "available_presets",
     "generate",
     "iter_chunks",
+    "registry",
     "validate",
     "write",
 ]
