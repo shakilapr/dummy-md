@@ -1,0 +1,23 @@
+{
+  "dialect": "extended",
+  "seed": 13,
+  "text_seed": null,
+  "length": {
+    "value": 8000,
+    "unit": "chars",
+    "mode": "approximate",
+    "tolerance": 0.05
+  },
+  "include": [],
+  "exclude": [],
+  "elements": {},
+  "feature_weights": {},
+  "text_style": "pseudowords",
+  "max_nesting_depth": 3,
+  "heading_skeleton": true,
+  "include_frontmatter": true,
+  "line_ending": "lf",
+  "trailing_newline": true,
+  "section_chars": 16000,
+  "fill_ratio": 0.9
+}

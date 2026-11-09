@@ -1,0 +1,44 @@
+{
+  "dialect": "gfm",
+  "seed": 12,
+  "text_seed": null,
+  "length": {
+    "value": 6000,
+    "unit": "chars",
+    "mode": "approximate",
+    "tolerance": 0.05
+  },
+  "include": [],
+  "exclude": [],
+  "elements": {
+    "table": {
+      "min_count": 0,
+      "max_count": null,
+      "weight": 1.0,
+      "options": {
+        "min_rows": 3,
+        "max_rows": 6,
+        "min_columns": 2,
+        "max_columns": 4,
+        "numeric_ratio": 0.3,
+        "empty_ratio": 0.08,
+        "inline_ratio": 0.3,
+        "header_only_ratio": 0.1,
+        "caption_ratio": 0.25,
+        "many_ratio": 0.2,
+        "style_ratio": 0.3,
+        "min_cell_words": 1,
+        "max_cell_words": 3
+      }
+    }
+  },
+  "feature_weights": {},
+  "text_style": "pseudowords",
+  "max_nesting_depth": 3,
+  "heading_skeleton": true,
+  "include_frontmatter": true,
+  "line_ending": "lf",
+  "trailing_newline": true,
+  "section_chars": 16000,
+  "fill_ratio": 0.9
+}

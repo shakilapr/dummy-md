@@ -82,3 +82,6 @@ Thumbs.db
 *.tmp
 /output/
 /scratch/
+
+# Generated showcase documents (see scripts/generate_outputs.py)
+/outputs/
