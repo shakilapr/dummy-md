@@ -24,6 +24,7 @@ from dummy_md.core.nodes import (
     Heading,
     HTMLBlock,
     Image,
+    InlineFootnote,
     InlineNode,
     LineBreak,
     Link,
@@ -69,7 +70,7 @@ class CommonMarkRenderer(BaseRenderer):
         if isinstance(node, ListItem):
             return self.render_blocks(node.children)
         if isinstance(node, Blockquote):
-            return self._quote(node.children)
+            return self._quote(node)
         if isinstance(node, Callout):
             return self._callout(node)
         if isinstance(node, Table):
@@ -120,6 +121,9 @@ class CommonMarkRenderer(BaseRenderer):
             return f"[^{node.label}]"
         if isinstance(node, Math):
             return self._math(node)
+        if isinstance(node, InlineFootnote):
+            self.require("footnote.inline", "inline footnotes")
+            return "^[" + self._inline_sequence(node.children, mode) + "]"
         if isinstance(node, LineBreak):
             raise RenderError("line breaks are rendered by paragraphs")
         raise RenderError(f"cannot render inline {type(node).__name__}")
@@ -133,7 +137,7 @@ class CommonMarkRenderer(BaseRenderer):
         attributes = self._attributes(node.attributes)
         if node.style == "setext":
             underline = "=" if node.level == 1 else "-"
-            return f"{text}\n{underline * max(3, len(text))}{attributes}"
+            return f"{text}{attributes}\n{underline * max(3, len(text))}"
         marks = "#" * node.level
         closing = f" {marks}" if node.closed else ""
         return f"{marks} {text}{closing}{attributes}"
@@ -171,7 +175,7 @@ class CommonMarkRenderer(BaseRenderer):
             return "\n".join("    " + line if line else "" for line in code.split("\n"))
         character, length = fence_for(code, node.fence_char, node.fence_length or 3)
         fence = character * length
-        info = node.info + self._attributes(node.attributes)
+        info = node.info + self._attributes(node.attributes, "code")
         opening = fence + info
         block = f"{opening}\n{code}\n{fence}"
         if node.caption:
@@ -181,7 +185,14 @@ class CommonMarkRenderer(BaseRenderer):
 
     def _list(self, node: ListBlock) -> str:
         if any(item.checked is not None for item in node.items):
-            self.require("list.task.unchecked", "task lists")
+            self.require_any(
+                (
+                    "list.task.unchecked",
+                    "list.task.checked",
+                    "list.task.mixed",
+                ),
+                "task lists",
+            )
         rendered_items = []
         for index, item in enumerate(node.items):
             marker = self._marker(node, index)
@@ -220,12 +231,36 @@ class CommonMarkRenderer(BaseRenderer):
         box = "[x] " if item.checked else "[ ] "
         return box + body
 
-    def _quote(self, children: tuple[BlockNode, ...]) -> str:
-        body = self.render_blocks(children)
-        return "\n".join("> " + line if line else ">" for line in body.split("\n"))
+    def _quote(self, node: Blockquote) -> str:
+        body = self.render_blocks(node.children)
+        lines = body.split("\n")
+        rendered: list[str] = []
+        in_paragraph = False
+        for index, line in enumerate(lines):
+            if not line:
+                rendered.append(">")
+                in_paragraph = False
+                continue
+            if index == 0:
+                rendered.append("> " + line)
+                in_paragraph = True
+                continue
+            if node.lazy and in_paragraph:
+                # Lazy continuation: wrapped paragraph lines may omit the marker.
+                self.require("blockquote.lazy", "lazy blockquote continuation")
+                rendered.append(line)
+            else:
+                rendered.append("> " + line)
+        return "\n".join(rendered)
 
     def _callout(self, node: Callout) -> str:
-        self.require("callout.github.note", "callouts")
+        self.require_any(
+            (
+                f"callout.github.{node.kind}",
+                f"callout.obsidian.{node.kind}",
+            ),
+            "callouts",
+        )
         header = f"> [!{node.kind.upper()}]"
         if node.title:
             self.require("callout.title.custom", "custom callout titles")
@@ -256,12 +291,18 @@ class CommonMarkRenderer(BaseRenderer):
         return f"{fence}\n{node.content.strip(chr(10))}\n{fence}"
 
     def _math_block(self, node: MathBlock) -> str:
-        self.require("math.display.dollar", "display math")
         expression = node.expression.strip("\n")
         if node.environment:
+            self.require(f"math.latex.{node.environment}", "LaTeX environments")
             begin = f"\\begin{{{node.environment}}}"
             end = f"\\end{{{node.environment}}}"
             return f"{begin}\n{expression}\n{end}"
+        feature = (
+            "math.display.bracket"
+            if node.delimiter == "bracket"
+            else "math.display.dollar"
+        )
+        self.require(feature, "display math")
         if node.delimiter == "bracket":
             return f"\\[\n{expression}\n\\]"
         return f"$$\n{expression}\n$$"
@@ -326,20 +367,24 @@ class CommonMarkRenderer(BaseRenderer):
         return f"![{label}]"
 
     def _math(self, node: Math) -> str:
-        self.require("math.inline.dollar", "inline math")
+        feature = (
+            "math.inline.paren" if node.delimiter == "bracket" else "math.inline.dollar"
+        )
+        self.require(feature, "inline math")
         if node.delimiter == "bracket":
             return f"\\({node.expression}\\)"
         return f"${node.expression}$"
 
-    def _attributes(self, attributes: Attributes | None) -> str:
+    # -- attributes -------------------------------------------------------
+    def _attributes(self, attributes: Attributes | None, scope: str = "heading") -> str:
         if attributes is None or attributes.is_empty():
             return ""
         parts: list[str] = []
         if attributes.identifier:
-            self.require("heading.attributes.identifier", "heading attributes")
+            self.require(f"{scope}.attributes.identifier", f"{scope} attributes")
             parts.append("#" + attributes.identifier)
         for name in attributes.classes:
-            self.require("heading.attributes.classes", "heading attributes")
+            self.require(f"{scope}.attributes.classes", f"{scope} attributes")
             parts.append("." + name)
         for key, value in attributes.pairs:
             parts.append(f'{key}="{escape_text(value, "text")}"')

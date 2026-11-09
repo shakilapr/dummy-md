@@ -199,6 +199,19 @@ class BaseRenderer:
             dialects=_dialects_supporting(feature_id),
         )
 
+    def require_any(self, feature_ids: tuple[str, ...], description: str) -> None:
+        """Accept any one of several equivalent feature ids."""
+        if any(self.dialect.supports(feature_id) for feature_id in feature_ids):
+            return
+        order = ("commonmark", "gfm", "extended", "stress")
+        supported: set[str] = set()
+        for feature_id in feature_ids:
+            supported.update(_dialects_supporting(feature_id))
+        raise DialectError(
+            f"{description} are not available in dialect {self.dialect.name!r}",
+            dialects=tuple(name for name in order if name in supported),
+        )
+
 
 def _dialects_supporting(feature_id: str) -> tuple[str, ...]:
     from dummy_md.core.catalog import CATALOG_BY_ID
