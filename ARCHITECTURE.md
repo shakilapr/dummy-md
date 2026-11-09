@@ -348,6 +348,28 @@ classDiagram
         +tuple[BlockNode] children
         +bool lazy
     }
+    class FencedDiv {
+        +tuple[BlockNode] children
+        +str info
+        +Attributes attributes
+    }
+    class LineBlock {
+        +tuple[tuple[InlineNode]] lines
+    }
+    class DefinitionList {
+        +tuple[DefinitionItem] items
+    }
+    class DefinitionItem {
+        +tuple[InlineNode] term
+        +tuple[tuple[BlockNode]] definitions
+    }
+    class AbbreviationDefinition {
+        +str label
+        +str title
+    }
+    class MathMacros {
+        +tuple[tuple[str, str]] definitions
+    }
     class Callout {
         +str kind
         +str title
@@ -422,6 +444,32 @@ classDiagram
         +str expression
         +str delimiter
     }
+    class CrossRef {
+        +str target
+        +str kind
+    }
+    class StyledSpan {
+        +tuple[InlineNode] children
+        +str syntax
+    }
+    class Critic {
+        +tuple[InlineNode] children
+        +str kind
+        +tuple[InlineNode] replacement
+    }
+    class EmojiShortcode {
+        +str name
+    }
+    class WikiLink {
+        +str target
+        +str alias
+        +str heading
+        +str block
+    }
+    class Span {
+        +tuple[InlineNode] children
+        +Attributes attributes
+    }
     class InlineFootnote {
         +tuple[InlineNode] children
     }
@@ -457,6 +505,12 @@ classDiagram
     InlineNode <|-- Strikethrough
     InlineNode <|-- CodeSpan
     InlineNode <|-- InlineFootnote
+    InlineNode <|-- StyledSpan
+    InlineNode <|-- Critic
+    InlineNode <|-- EmojiShortcode
+    InlineNode <|-- WikiLink
+    InlineNode <|-- Span
+    InlineNode <|-- CrossRef
     InlineNode <|-- Link
     InlineNode <|-- Image
     InlineNode <|-- Autolink

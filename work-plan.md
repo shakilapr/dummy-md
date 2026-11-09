@@ -6,8 +6,8 @@ built and verified. Feature ids refer to the machine-readable catalog in
 
 Legend: `[x]` implemented and tested · `[ ]` planned · `[-]` deliberately out of scope for now.
 
-**Status:** 423 catalogued targets, 228 implemented (117 CommonMark, 151 GFM, 228 extended).
-293 tests, `mypy --strict` clean, `ruff` clean.
+**Status:** 423 catalogued targets, 297 implemented (129 CommonMark, 163 GFM, 297 extended).
+359 tests, `mypy --strict` clean, `ruff` clean.
 
 ---
 
@@ -22,6 +22,8 @@ Legend: `[x]` implemented and tested · `[ ]` planned · `[-]` deliberately out 
 | M4 Public surface | API, presets, CLI, streaming | done |
 | M5 Extended dialects | Extended features gated by dialect | done for 6 families |
 | M6 Customization | Dialects, renderers, text styles, presets, weights, JSON specs | done |
+| M7 Fidelity audit | Every implemented feature reachable and rendered | done |
+| M8 Syntax expansion | Pandoc, CriticMarkup, wiki links, more tables/diagrams/HTML | done |
 
 ---
 
@@ -123,16 +125,38 @@ rendered output. The audit found and fixed:
 
 ---
 
+## M8 — Syntax expansion `[x]`
+
+Added the missing core and Pandoc-style syntax that the existing AST could express:
+
+- Inline: superscript, subscript, underline, highlight, insert, small caps, emoji shortcodes,
+  CriticMarkup (deletion/insertion/replacement/highlight/comment), abbreviation definitions
+  and references.
+- Blocks: Pandoc line blocks, fenced divs, theorem blocks, definition lists.
+- Lists: alphabetical, Roman-numeral and numbered example lists.
+- Links: wiki links (basic, aliases, heading and block targets), Pandoc link attributes.
+- Tables: Pandoc simple and multiline styles, plus figure labels.
+- Math: equation labels, LaTeX macros, cross-references.
+- HTML: SVG, `<img>`, `<picture>`, `<audio>`, `<video>`, `<iframe>`, `<colgroup>`, table parts,
+  row/column spans, and markdown-in-HTML containers.
+- Diagrams: 21 further Mermaid families plus Graphviz, PlantUML and D2 fence engines.
+
+88 fidelity tests assert each new construct reaches rendered output.
+
 ## Next up
 
-1. **Stress dialect features** — implement the 30 `stress.*` rows (escapes, Unicode scripts,
-   CRLF emission, deep nesting) and gate them to the `stress` dialect.
-2. **Grid tables** — needs a dedicated `GridTable` node; pipe tables cannot express spans.
-3. **Pandoc attribute coverage** — `link.attributes`, `math.label`, `math.crossref`.
-4. **Platform families** — Obsidian, GitLab, MyST, MkDocs, Quarto, Docusaurus. Each needs a
-   parser that can verify the output before it is marked implemented.
-5. **CLI streaming for byte targets** — `--size` currently streams through sections but does not
-   precompute section counts from bytes.
+1. **Grid tables** — needs a dedicated layout pass for row/column spans; `table.simple` and
+   `table.multiline` already cover span-free tables.
+2. **Code-block extras** — Docusaurus titles/highlights, line numbers, PyMdown annotations,
+   Quarto executable chunks and GitLab JSON tables need extra `CodeBlock` fields.
+3. **Citations** — bracketed/narrative/locator forms plus bibliography fixtures.
+4. **Platform families** — Obsidian properties/embeds, GitLab references/includes, MyST/MkDocs/
+   Quarto directives; each needs a parser to verify output before it is marked implemented.
+5. **Stress fixtures** — the 30 `stress.*` rows need raw-byte emission (escapes, CRLF, tabs,
+   zero-width characters) instead of the normal escaping path.
+6. **MDX** — JSX/expressions require a dedicated dialect and renderer.
+7. **CLI streaming for byte targets** — `--size` streams sections but does not precompute
+   section counts from bytes.
 
 ---
 

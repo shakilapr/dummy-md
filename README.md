@@ -120,8 +120,12 @@ equals `generate()` for the same spec.
 | `extended` | GFM + heading/code attributes, figure captions, footnotes, math, callouts, Mermaid, front matter |
 | `stress` | same capability set as `extended`; the `stress` preset adds token text and deeper nesting |
 
-Counts: 423 catalogued generation targets, 228 currently implemented (117 CommonMark, 151 GFM,
-228 extended).
+Counts: 423 catalogued generation targets, 297 currently implemented (129 CommonMark, 163 GFM,
+297 extended). Newly covered: Pandoc line blocks, fenced divs, definition lists, alpha/Roman/
+example lists, wiki links, simple/multiline tables, CriticMarkup, superscript/subscript/
+underline/highlight/insert, small caps, emoji shortcodes, abbreviations, inline math labels,
+LaTeX macros and cross-references, theorem blocks, 24 more diagram families, and SVG/media/
+iframe/picture/table-part HTML.
 
 ```bash
 dummy-md elements --dialect gfm     # implemented ids for a dialect
