@@ -18,6 +18,12 @@ LineBreakStyle = Literal["spaces", "backslash", "soft"]
 MathDelimiter = Literal["dollar", "bracket"]
 ReferenceKind = Literal["named", "decimal", "hex"]
 ReferenceTitleDelimiter = Literal['"', "'", "("]
+StyledSpanSyntax = Literal[
+    "superscript", "subscript", "underline", "highlight", "insert"
+]
+CriticKind = Literal["deletion", "insertion", "replacement", "comment", "highlight"]
+TableStyle = Literal["pipe", "simple", "multiline"]
+ListStyle = Literal["decimal", "alpha", "roman", "example"]
 
 T = TypeVar("T")
 T_co = TypeVar("T_co", covariant=True)
@@ -141,6 +147,7 @@ class ListBlock(BlockNode):
     delimiter: str = ""
     start: int = 1
     tight: bool = True
+    style: ListStyle = "decimal"
 
     def __post_init__(self) -> None:
         if not self.delimiter:
@@ -198,6 +205,7 @@ class Table(BlockNode):
     alignments: tuple[Alignment, ...] = ()
     outer_pipes: bool = True
     caption: str = ""
+    style: TableStyle = "pipe"
 
     def __post_init__(self) -> None:
         if self.alignments and len(self.alignments) != len(self.header):
@@ -215,12 +223,56 @@ class MathBlock(BlockNode):
     expression: str
     delimiter: MathDelimiter = "dollar"
     environment: str = ""
+    label: str = ""
+
+
+@dataclass(frozen=True, slots=True)
+class MathMacros(BlockNode):
+    """A group of LaTeX macro definitions."""
+
+    definitions: tuple[tuple[str, str], ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
 class Figure(BlockNode):
     image: Image
     caption: str = ""
+    label: str = ""
+
+
+@dataclass(frozen=True, slots=True)
+class AbbreviationDefinition(BlockNode):
+    """PyMdown-style ``*[HTML]: HyperText Markup Language`` definition."""
+
+    label: str
+    title: str
+
+
+@dataclass(frozen=True, slots=True)
+class LineBlock(BlockNode):
+    """Pandoc line block: every line is prefixed with ``| ``."""
+
+    lines: tuple[tuple[InlineNode, ...], ...] = ()
+
+
+@dataclass(frozen=True, slots=True)
+class FencedDiv(BlockNode):
+    """Pandoc fenced div container."""
+
+    children: tuple[BlockNode, ...] = ()
+    info: str = ""
+    attributes: Attributes | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class DefinitionItem(MarkdownNode):
+    term: tuple[InlineNode, ...] = ()
+    definitions: tuple[tuple[BlockNode, ...], ...] = ()
+
+
+@dataclass(frozen=True, slots=True)
+class DefinitionList(BlockNode):
+    items: tuple[DefinitionItem, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -287,6 +339,7 @@ class Link(InlineNode):
     kind: InlineKind = "inline"
     label: str = ""
     title_delimiter: ReferenceTitleDelimiter = '"'
+    attributes: Attributes | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -343,6 +396,53 @@ class InlineFootnote(InlineNode):
     children: tuple[InlineNode, ...] = ()
 
 
+@dataclass(frozen=True, slots=True)
+class StyledSpan(InlineNode):
+    """Typographic span rendered with extension delimiters."""
+
+    children: tuple[InlineNode, ...] = ()
+    syntax: StyledSpanSyntax = "superscript"
+
+
+@dataclass(frozen=True, slots=True)
+class Critic(InlineNode):
+    """CriticMarkup tracked change."""
+
+    children: tuple[InlineNode, ...] = ()
+    kind: CriticKind = "insertion"
+    replacement: tuple[InlineNode, ...] = ()
+
+
+@dataclass(frozen=True, slots=True)
+class EmojiShortcode(InlineNode):
+    name: str
+
+
+@dataclass(frozen=True, slots=True)
+class WikiLink(InlineNode):
+    target: str
+    alias: str = ""
+    heading: str = ""
+    block: str = ""
+    unresolved: bool = False
+
+
+@dataclass(frozen=True, slots=True)
+class Span(InlineNode):
+    """Pandoc bracketed span: ``[text]{.class}``."""
+
+    children: tuple[InlineNode, ...] = ()
+    attributes: Attributes | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class CrossRef(InlineNode):
+    """Reference to a labelled element (equation, figure, table)."""
+
+    target: str
+    kind: Literal["equation", "figure", "table"] = "equation"
+
+
 # --------------------------------------------------------------------------
 # Traversal
 # --------------------------------------------------------------------------
@@ -363,7 +463,18 @@ def children_of(node: MarkdownNode) -> tuple[MarkdownNode, ...]:
         return tuple(cells)
     if isinstance(node, TableCell):
         return tuple(node.children)
-    if isinstance(node, Emphasis | Link | Strikethrough | InlineFootnote):
+    if isinstance(
+        node,
+        Emphasis | Link | Strikethrough | InlineFootnote | StyledSpan | Critic | Span,
+    ):
+        return tuple(node.children)
+    if isinstance(node, DefinitionItem):
+        return tuple(node.term)
+    if isinstance(node, DefinitionList):
+        return tuple(node.items)
+    if isinstance(node, LineBlock):
+        return tuple(child for line in node.lines for child in line)
+    if isinstance(node, FencedDiv):
         return tuple(node.children)
     if isinstance(node, Image):
         return tuple(node.alt)
