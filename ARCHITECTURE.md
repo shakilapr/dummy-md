@@ -335,9 +335,10 @@ classDiagram
     }
     class ListBlock {
         +bool ordered
-        +str delimiter
-        +int start
         +bool tight
+        +str delimiter
+        +str style
+        +int start
         +tuple[ListItem] items
     }
     class ListItem {
@@ -383,6 +384,7 @@ classDiagram
         +tuple[str] alignments
         +bool outer_pipes
         +str caption
+        +str style
     }
     class TableCell {
         +tuple[InlineNode] children
