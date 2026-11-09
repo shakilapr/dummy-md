@@ -9,17 +9,30 @@ from __future__ import annotations
 
 from dummy_md.core.nodes import Alignment, Table, TableCell, text_content
 from dummy_md.exceptions import DialectError
+from dummy_md.renderers.base import escape_text
 from dummy_md.renderers.commonmark import CommonMarkRenderer
+
+
+def _pad_grid(text: str, width: int, alignment: Alignment) -> str:
+    padding = max(0, width - len(text))
+    if alignment == "right":
+        return " " * padding + text
+    if alignment == "center":
+        left = padding // 2
+        return " " * left + text + " " * (padding - left)
+    return text + " " * padding
 
 
 class GFMRenderer(CommonMarkRenderer):
     """CommonMark plus pipe tables and Pandoc simple/multiline tables."""
 
     def _table(self, node: Table) -> str:
+        if node.style == "grid":
+            return self._grid_table(node)
         for cell in (*node.header, *(cell for row in node.rows for cell in row)):
             if cell.colspan != 1 or cell.rowspan != 1:
                 raise DialectError(
-                    "row and column spans are not implemented by any renderer yet",
+                    "row and column spans require grid tables",
                     dialects=("extended", "stress"),
                 )
         pandoc_ready = _pandoc_table_supported(node)
@@ -28,6 +41,159 @@ class GFMRenderer(CommonMarkRenderer):
         if node.style == "multiline" and pandoc_ready:
             return self._multiline_table(node)
         return self._pipe_table(node)
+
+    # -- grid tables -------------------------------------------------------
+    def _grid_table(self, node: Table) -> str:
+        """Render a Pandoc-style grid table, including row/column spans.
+
+        Pandoc's reader does not preserve spans in grid tables, but the syntax
+        is the canonical fixed-width form used by MultiMarkdown and Emacs table
+        mode, and every cell's text survives the round trip.
+        """
+        self.require_any(
+            ("table.grid", "table.grid.colspan", "table.grid.rowspan"),
+            "grid tables",
+        )
+        rows = (node.header, *node.rows)
+        if not rows:
+            return ""
+        columns = max(sum(cell.colspan for cell in row) for row in rows if row)
+        if columns < 1:
+            return ""
+        cells = [[self._cell(cell) for cell in row] for row in rows]
+        occupancy: list[list[tuple[int, int, TableCell] | None]] = [
+            [None] * columns for _ in rows
+        ]
+        origins: list[list[tuple[int, int, TableCell, str]]] = [[] for _ in rows]
+        for row_index, row in enumerate(rows):
+            column = 0
+            for cell, text in zip(row, cells[row_index], strict=True):
+                while column < columns and occupancy[row_index][column] is not None:
+                    column += 1
+                if column >= columns:
+                    break
+                span = min(cell.colspan, columns - column)
+                for offset in range(cell.rowspan):
+                    target = row_index + offset
+                    if target >= len(rows):
+                        break
+                    for sub in range(span):
+                        occupancy[target][column + sub] = (row_index, column, cell)
+                origins[row_index].append((column, span, cell, text))
+                column += span
+
+        widths = [3] * columns
+        for _row_index, row_origins in enumerate(origins):
+            for column, span, _cell, text in row_origins:
+                if span == 1:
+                    widths[column] = max(widths[column], len(text) + 2)
+                else:
+                    total = sum(widths[column : column + span]) + span - 1
+                    need = len(text) + 2
+                    if need > total:
+                        widths[column + span - 1] += need - total
+
+        def region_boundaries(row_index: int) -> set[int]:
+            result = {0, columns}
+            for column, span, _cell, _text in origins[row_index]:
+                result.add(column)
+                result.add(column + span)
+            return result
+
+        def rule(boundary: int, header: bool) -> str:
+            above = occupancy[boundary - 1] if boundary else [None] * columns
+            below = occupancy[boundary] if boundary < len(rows) else [None] * columns
+            above_boundaries = (
+                region_boundaries(boundary - 1) if boundary else {0, columns}
+            )
+            below_boundaries = (
+                region_boundaries(boundary) if boundary < len(rows) else {0, columns}
+            )
+            dash = "=" if header else "-"
+            parts: list[str] = []
+            for column in range(columns + 1):
+                if column in (0, columns):
+                    edge = 0 if column == 0 else columns - 1
+                    outer_above = above[edge]
+                    outer_below = below[edge]
+                    continues = (
+                        outer_above is not None
+                        and outer_below is not None
+                        and outer_above[:2] == outer_below[:2]
+                        and 0 < boundary < len(rows)
+                    )
+                    parts.append("|" if continues else "+")
+                elif (column in above_boundaries or column in below_boundaries) and (
+                    (
+                        above[column - 1] is None
+                        or above[column] is not above[column - 1]
+                    )
+                    or (
+                        below[column - 1] is None
+                        or below[column] is not below[column - 1]
+                    )
+                ):
+                    parts.append("+")
+                else:
+                    parts.append(dash)
+                if column < columns:
+                    span_above = above[column]
+                    span_below = below[column]
+                    spanning = (
+                        span_above is not None
+                        and span_below is not None
+                        and span_above[:2] == span_below[:2]
+                        and 0 < boundary < len(rows)
+                    )
+                    parts.append((" " if spanning else dash) * widths[column])
+            return "".join(parts)
+
+        lines = [rule(0, False)]
+        for row_index in range(len(rows)):
+            regions: list[tuple[int, int, str]] = []
+            column = 0
+            while column < columns:
+                owner = occupancy[row_index][column]
+                if owner is None:
+                    regions.append((column, 1, ""))
+                    column += 1
+                    continue
+                origin_row, origin_column, cell = owner
+                span = min(cell.colspan, columns - origin_column)
+                text = (
+                    self._cell(cell)
+                    if origin_row == row_index and origin_column == column
+                    else ""
+                )
+                regions.append((origin_column, span, text))
+                column = origin_column + span
+            segments: list[str] = []
+            for start, span, text in regions:
+                total = sum(widths[start : start + span]) + span - 1
+                alignment = (
+                    node.alignments[start]
+                    if start < len(node.alignments)
+                    else "default"
+                )
+                inner = max(1, total - 2)
+                segments.append(" " + _pad_grid(text, inner, alignment) + " ")
+            lines.append("|" + "|".join(segments) + "|")
+            if row_index == 0 and len(rows) > 1:
+                lines.append(rule(1, True))
+            elif row_index < len(rows) - 1:
+                lines.append(rule(row_index + 1, False))
+        lines.append(rule(len(rows), False))
+        # The header rule is emitted by the first iteration; remove duplicate
+        # body rule immediately after it.
+        deduped: list[str] = []
+        for line in lines:
+            if deduped and line == deduped[-1] and set(line) <= {"+", "="}:
+                continue
+            deduped.append(line)
+        rendered = "\n".join(deduped)
+        if node.caption:
+            rendered += f"\n\n: {escape_text(node.caption)}"
+        return rendered
 
     # -- pipe tables -------------------------------------------------------
     def _pipe_table(self, node: Table) -> str:

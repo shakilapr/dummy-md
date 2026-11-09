@@ -11,15 +11,21 @@ from dummy_md.core.nodes import (
     AbbreviationDefinition,
     Attributes,
     Autolink,
+    Bibliography,
+    BlockId,
     BlockNode,
     Blockquote,
     Callout,
     CharacterReference,
+    Citation,
     CodeBlock,
     CodeSpan,
     Critic,
     CrossRef,
     DefinitionList,
+    DirectiveBlock,
+    DirectiveInline,
+    Embed,
     EmojiShortcode,
     Emphasis,
     Escape,
@@ -30,6 +36,7 @@ from dummy_md.core.nodes import (
     Heading,
     HTMLBlock,
     Image,
+    InlineComment,
     InlineFootnote,
     InlineNode,
     LineBlock,
@@ -40,12 +47,16 @@ from dummy_md.core.nodes import (
     Math,
     MathBlock,
     MathMacros,
+    MdxBlock,
+    MdxInline,
     Paragraph,
+    PlatformRef,
     RawHTML,
     Span,
     Strikethrough,
     StyledSpan,
     Table,
+    Tag,
     Text,
     ThematicBreak,
     WikiLink,
@@ -149,6 +160,12 @@ class CommonMarkRenderer(BaseRenderer):
             return f"*[{node.label}]: {node.title}"
         if isinstance(node, MathMacros):
             return self._math_macros(node)
+        if isinstance(node, DirectiveBlock):
+            return self._directive_block(node)
+        if isinstance(node, MdxBlock):
+            return self._mdx_block(node)
+        if isinstance(node, Bibliography):
+            return self._bibliography(node)
         raise RenderError(f"cannot render block {type(node).__name__}")
 
     # -- inlines ----------------------------------------------------------
@@ -205,6 +222,22 @@ class CommonMarkRenderer(BaseRenderer):
         if isinstance(node, CrossRef):
             self.require("math.crossref", "cross-references")
             return "[@" + node.target + "]"
+        if isinstance(node, DirectiveInline):
+            return self._directive_inline(node)
+        if isinstance(node, MdxInline):
+            return self._mdx_inline(node)
+        if isinstance(node, Embed):
+            return self._embed(node)
+        if isinstance(node, Tag):
+            return self._tag(node)
+        if isinstance(node, InlineComment):
+            return self._inline_comment(node)
+        if isinstance(node, BlockId):
+            return self._block_id(node)
+        if isinstance(node, PlatformRef):
+            return self._platform_ref(node)
+        if isinstance(node, Citation):
+            return self._citation(node)
         if isinstance(node, LineBreak):
             raise RenderError("line breaks are rendered by paragraphs")
         raise RenderError(f"cannot render inline {type(node).__name__}")
@@ -240,6 +273,10 @@ class CommonMarkRenderer(BaseRenderer):
         return "".join(pieces)
 
     def _line_break(self, node: LineBreak) -> str:
+        if node.style == "crlf":
+            return "\r\n"
+        if node.style == "lf":
+            return "\n"
         if not node.hard:
             return "\n"
         if node.style == "backslash":
@@ -252,16 +289,30 @@ class CommonMarkRenderer(BaseRenderer):
 
     def _code_block(self, node: CodeBlock) -> str:
         code = node.code[:-1] if node.code.endswith("\n") else node.code
+        if node.meta:
+            self.require(node.meta_feature, "code block metadata")
+        if node.annotations:
+            self.require("code.annotations", "code annotations")
+        if node.feature:
+            self.require(node.feature, "code block feature")
         if node.indented:
             return "\n".join("    " + line if line else "" for line in code.split("\n"))
         character, length = fence_for(code, node.fence_char, node.fence_length or 3)
         fence = character * length
-        info = node.info + self._attributes(node.attributes, "code")
+        info = node.info
+        if node.meta:
+            info += " " + node.meta
+        info += self._attributes(node.attributes, "code")
         opening = fence + info
         block = f"{opening}\n{code}\n{fence}"
         if node.caption:
             self.require("code.caption", "code captions")
             block += f"\n\n: {escape_text(node.caption)}"
+        if node.annotations:
+            block += "\n\n" + "\n".join(
+                f"{index}. {escape_text(text)}"
+                for index, text in enumerate(node.annotations, start=1)
+            )
         return block
 
     def _list(self, node: ListBlock) -> str:
@@ -317,8 +368,11 @@ class CommonMarkRenderer(BaseRenderer):
             body = "".join(rendered)
         else:
             body = self.render_blocks(item.children)
-        if item.checked is None:
+        if item.checked is None and not item.marker:
             return body
+        if item.marker:
+            self.require("list.task.inapplicable", "inapplicable task markers")
+            return f"[{item.marker}] " + body
         box = "[x] " if item.checked else "[ ] "
         return box + body
 
@@ -402,7 +456,9 @@ class CommonMarkRenderer(BaseRenderer):
         return f"$$\n{labelled}\n$$"
 
     def _figure(self, node: Figure) -> str:
-        if node.caption:
+        if node.implicit:
+            self.require("image.figure.implicit", "implicit figures")
+        elif node.caption:
             self.require("image.figure.caption", "figure captions")
         if node.label:
             self.require("image.figure.label", "figure labels")
@@ -468,8 +524,75 @@ class CommonMarkRenderer(BaseRenderer):
             f"\\newcommand{{\\{name}}}{{{body}}}" for name, body in node.definitions
         )
 
+    # -- documentation and platform blocks --------------------------------
+    def _directive_block(self, node: DirectiveBlock) -> str:
+        self.require(node.feature, "documentation directives")
+        body = self.render_blocks(node.children)
+        if node.style == "myst":
+            if node.name == "target":
+                return f"({node.argument})=" + ("\n\n" + body if body else "")
+            header = ":::" + "{" + node.name + "}"
+            if node.argument:
+                header += " " + node.argument
+            options = "\n".join(f":{key}: {value}" for key, value in node.options)
+            parts = [header]
+            if options:
+                parts.append(options)
+            if node.title:
+                parts.append(node.title)
+            if body:
+                parts.append(body)
+            parts.append(":::")
+            return "\n".join(parts)
+        if node.style == "mkdocs":
+            if node.name == "annotations":
+                fence = "```python"
+                return f"{fence}\n{node.argument}\n```\n\n1. " + escape_text(
+                    node.title or "Annotation"
+                )
+            if node.name == "tabs":
+                label = node.title or "Tab"
+                indented = "\n".join(
+                    "    " + line if line else "" for line in body.split("\n")
+                )
+                return f'=== "{label}"\n{indented}'
+            marker = "???" if node.name == "details" else "!!!"
+            header = f"{marker} {node.name}"
+            if node.title:
+                header += f' "{node.title}"'
+            if not body:
+                return header
+            indented = "\n".join(
+                "    " + line if line else "" for line in body.split("\n")
+            )
+            return f"{header}\n{indented}"
+        # Quarto fenced divs.
+        if node.name == "callout":
+            classes = "callout-" + (node.argument or "note")
+        elif node.name == "tabset":
+            classes = "panel-tabset"
+        else:
+            classes = node.name
+        header = "::: {." + classes + "}"
+        if node.title:
+            body = ("## " + node.title + ("\n\n" + body if body else "")).strip()
+        return f"{header}\n{body}\n:::" if body else f"{header}\n:::"
+
+    def _mdx_block(self, node: MdxBlock) -> str:
+        self.require(node.feature, "MDX blocks")
+        return node.code
+
+    def _bibliography(self, node: Bibliography) -> str:
+        self.require(node.feature, "bibliographies")
+        if node.kind == "directive":
+            return "::: {#refs}\n:::"
+        content = node.content.strip("\n")
+        return f"---\n{content}\n---"
+
     # -- inline helpers ---------------------------------------------------
     def _code_span(self, node: CodeSpan) -> str:
+        if node.feature:
+            self.require(node.feature, "inline code feature")
         code = node.code
         delimiter = "`" * (longest_run(code, "`") + 1)
         if not code:
@@ -537,7 +660,10 @@ class CommonMarkRenderer(BaseRenderer):
     # -- extended inlines --------------------------------------------------
     def _styled_span(self, node: StyledSpan, mode: InlineMode) -> str:
         feature, opening, closing = _STYLED_SPANS[node.syntax]
-        self.require(feature, "inline styling")
+        if node.syntax == "highlight":
+            self.require_any((feature, "platform.obsidian.highlight"), "inline styling")
+        else:
+            self.require(feature, "inline styling")
         inner = self._inline_sequence(node.children, mode)
         return f"{opening}{inner}{closing}"
 
@@ -556,7 +682,10 @@ class CommonMarkRenderer(BaseRenderer):
         return "{" + f"=={inner}==" + "}"
 
     def _wiki_link(self, node: WikiLink) -> str:
-        self.require("link.wiki.basic", "wiki links")
+        self.require_any(
+            ("link.wiki.basic", "platform.obsidian.wikilink.unresolved"),
+            "wiki links",
+        )
         if node.alias:
             self.require("link.wiki.alias", "wiki link aliases")
         if node.heading:
@@ -579,6 +708,75 @@ class CommonMarkRenderer(BaseRenderer):
         inner = self._inline_sequence(node.children, mode)
         return "[" + inner + "]" + self._attribute_string(node.attributes)
 
+    def _directive_inline(self, node: DirectiveInline) -> str:
+        self.require(node.feature, "documentation roles")
+        if node.style == "myst":
+            return "{" + node.name + "}`" + node.argument + "`"
+        if node.style == "quarto":
+            return "{{< " + node.name + " " + node.argument + " >}}"
+        if node.name == "keys":
+            return "++" + node.argument + "++"
+        if node.name == "icons":
+            return ":" + node.argument + ":"
+        return ":{" + node.argument + '}{ title="' + node.name + '" }'
+
+    def _mdx_inline(self, node: MdxInline) -> str:
+        self.require(node.feature, "MDX expressions")
+        return node.code
+
+    def _embed(self, node: Embed) -> str:
+        self.require(node.feature, "Obsidian embeds")
+        target = node.target
+        if node.fragment:
+            target += "#" + node.fragment
+        if node.width is not None and node.height is not None:
+            target += f"|{node.width}x{node.height}"
+        elif node.width is not None:
+            target += f"|{node.width}"
+        return "![[" + target + "]]"
+
+    def _tag(self, node: Tag) -> str:
+        self.require(node.feature, "Obsidian tags")
+        return "#" + node.name
+
+    def _inline_comment(self, node: InlineComment) -> str:
+        self.require(node.feature, "Obsidian comments")
+        return "%%" + node.text + "%%"
+
+    def _block_id(self, node: BlockId) -> str:
+        self.require(node.feature, "Obsidian block ids")
+        return "^" + node.name
+
+    def _platform_ref(self, node: PlatformRef) -> str:
+        self.require(node.feature, "platform references")
+        if node.kind == "issue":
+            return "#" + node.value
+        if node.kind == "merge_request":
+            return "!" + node.value
+        if node.kind == "mention":
+            return "@" + node.value
+        if node.kind == "commit":
+            return "`" + node.value + "`"
+        if node.kind == "include":
+            return "::include{file=" + node.value + "}"
+        if node.kind == "color":
+            return "`#" + node.value + "`"
+        return "%{" + node.value + "}"
+
+    def _citation(self, node: Citation) -> str:
+        self.require(node.feature, "citations")
+        if node.mode == "narrative":
+            rendered = "@" + node.keys[0]
+            if node.suppress_author:
+                rendered = "-@" + node.keys[0]
+            return (node.prefix + " " + rendered).strip()
+        keys = "; ".join(
+            ("-@" if node.suppress_author else "@") + key for key in node.keys
+        )
+        if node.locator:
+            keys += ", " + node.locator
+        return (node.prefix + " [" + keys + "]" + node.suffix).strip()
+
     def _attribute_string(self, attributes: Attributes | None) -> str:
         if attributes is None or attributes.is_empty():
             return "{}"
@@ -587,7 +785,7 @@ class CommonMarkRenderer(BaseRenderer):
             parts.append("#" + attributes.identifier)
         parts.extend("." + name for name in attributes.classes)
         parts.extend(
-            key + '="' + escape_text(value, "text") + '"'
+            key if value == "" else key + '="' + escape_text(value, "text") + '"'
             for key, value in attributes.pairs
         )
         return "{" + " ".join(parts) + "}"
@@ -604,7 +802,9 @@ class CommonMarkRenderer(BaseRenderer):
             self.require(f"{scope}.attributes.classes", f"{scope} attributes")
             parts.append("." + name)
         for key, value in attributes.pairs:
-            parts.append(f'{key}="{escape_text(value, "text")}"')
+            parts.append(
+                key if value == "" else f'{key}="{escape_text(value, "text")}"'
+            )
         return " {" + " ".join(parts) + "}" if parts else ""
 
 

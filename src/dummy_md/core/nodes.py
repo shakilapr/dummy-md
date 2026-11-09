@@ -14,7 +14,7 @@ CodeSpanStyle = Literal["emphasis"]  # reserved for future inline variants
 EmphasisLevel = Literal[1, 2, 3]
 HeadingStyle = Literal["atx", "setext"]
 InlineKind = Literal["inline", "full", "collapsed", "shortcut"]
-LineBreakStyle = Literal["spaces", "backslash", "soft"]
+LineBreakStyle = Literal["spaces", "backslash", "soft", "lf", "crlf"]
 MathDelimiter = Literal["dollar", "bracket"]
 ReferenceKind = Literal["named", "decimal", "hex"]
 ReferenceTitleDelimiter = Literal['"', "'", "("]
@@ -22,8 +22,14 @@ StyledSpanSyntax = Literal[
     "superscript", "subscript", "underline", "highlight", "insert"
 ]
 CriticKind = Literal["deletion", "insertion", "replacement", "comment", "highlight"]
-TableStyle = Literal["pipe", "simple", "multiline"]
+TableStyle = Literal["pipe", "simple", "multiline", "grid"]
 ListStyle = Literal["decimal", "alpha", "roman", "example"]
+DirectiveStyle = Literal["myst", "mkdocs", "quarto"]
+CitationMode = Literal["bracketed", "narrative"]
+PlatformRefKind = Literal[
+    "issue", "merge_request", "mention", "commit", "include", "placeholder", "color"
+]
+BibliographyKind = Literal["resource", "nocite", "directive"]
 
 T = TypeVar("T")
 T_co = TypeVar("T_co", covariant=True)
@@ -122,6 +128,10 @@ class CodeBlock(BlockNode):
     indented: bool = False
     attributes: Attributes | None = None
     caption: str = ""
+    meta: str = ""
+    meta_feature: str = ""
+    annotations: tuple[str, ...] = ()
+    feature: str = ""
 
     def __post_init__(self) -> None:
         if self.indented and self.info:
@@ -172,6 +182,7 @@ class ListBlock(BlockNode):
 class ListItem(BlockNode):
     children: tuple[BlockNode, ...] = ()
     checked: bool | None = None
+    marker: str = ""
 
 
 @dataclass(frozen=True, slots=True)
@@ -212,9 +223,14 @@ class Table(BlockNode):
     style: TableStyle = "pipe"
 
     def __post_init__(self) -> None:
-        if self.alignments and len(self.alignments) != len(self.header):
+        expected = (
+            sum(cell.colspan for cell in self.header)
+            if self.style == "grid"
+            else len(self.header)
+        )
+        if self.alignments and len(self.alignments) != expected:
             raise ValueError("one alignment is required per header cell")
-        if self.style not in {"pipe", "simple", "multiline"}:
+        if self.style not in {"pipe", "simple", "multiline", "grid"}:
             raise ValueError(f"unknown table style {self.style!r}")
 
 
@@ -244,6 +260,7 @@ class Figure(BlockNode):
     image: Image
     caption: str = ""
     label: str = ""
+    implicit: bool = False
 
 
 @dataclass(frozen=True, slots=True)
@@ -268,6 +285,40 @@ class FencedDiv(BlockNode):
     children: tuple[BlockNode, ...] = ()
     info: str = ""
     attributes: Attributes | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class DirectiveBlock(BlockNode):
+    """A documentation-system directive (MyST, MkDocs or Quarto)."""
+
+    feature: str
+    style: DirectiveStyle
+    name: str
+    argument: str = ""
+    title: str = ""
+    options: tuple[tuple[str, str], ...] = ()
+    children: tuple[BlockNode, ...] = ()
+
+    def __post_init__(self) -> None:
+        if not self.name:
+            raise ValueError("directive name must not be empty")
+
+
+@dataclass(frozen=True, slots=True)
+class MdxBlock(BlockNode):
+    """A raw MDX/JSX block payload."""
+
+    feature: str
+    code: str
+
+
+@dataclass(frozen=True, slots=True)
+class Bibliography(BlockNode):
+    """A bibliography placeholder or metadata block."""
+
+    feature: str
+    kind: BibliographyKind
+    content: str = ""
 
 
 @dataclass(frozen=True, slots=True)
@@ -335,6 +386,7 @@ class Strikethrough(InlineNode):
 @dataclass(frozen=True, slots=True)
 class CodeSpan(InlineNode):
     code: str
+    feature: str = ""
 
 
 @dataclass(frozen=True, slots=True)
@@ -378,6 +430,10 @@ class LineBreak(InlineNode):
     style: LineBreakStyle = "spaces"
 
     def __post_init__(self) -> None:
+        if self.style in {"lf", "crlf"}:
+            if self.hard:
+                raise ValueError("raw line endings cannot be hard breaks")
+            return
         if not self.hard and self.style != "soft":
             raise ValueError("soft line breaks must use the 'soft' style")
         if self.hard and self.style == "soft":
@@ -434,6 +490,85 @@ class WikiLink(InlineNode):
 
 
 @dataclass(frozen=True, slots=True)
+class DirectiveInline(InlineNode):
+    """A role, key chord, icon, tooltip or shortcode."""
+
+    feature: str
+    style: DirectiveStyle
+    name: str
+    argument: str
+
+
+@dataclass(frozen=True, slots=True)
+class MdxInline(InlineNode):
+    """A raw MDX expression or JSX fragment."""
+
+    feature: str
+    code: str
+
+
+@dataclass(frozen=True, slots=True)
+class Embed(InlineNode):
+    """An Obsidian embed: ``![[target#fragment|size]]``."""
+
+    feature: str
+    target: str
+    fragment: str = ""
+    width: int | None = None
+    height: int | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class Tag(InlineNode):
+    """An Obsidian tag."""
+
+    feature: str
+    name: str
+
+
+@dataclass(frozen=True, slots=True)
+class InlineComment(InlineNode):
+    """An Obsidian comment: ``%%text%%``."""
+
+    feature: str
+    text: str
+
+
+@dataclass(frozen=True, slots=True)
+class BlockId(InlineNode):
+    """An Obsidian block identifier."""
+
+    feature: str
+    name: str
+
+
+@dataclass(frozen=True, slots=True)
+class PlatformRef(InlineNode):
+    """A platform-specific reference such as a GitLab issue or mention."""
+
+    feature: str
+    kind: PlatformRefKind
+    value: str
+
+
+@dataclass(frozen=True, slots=True)
+class Citation(InlineNode):
+    """A Pandoc citation with one or more keys."""
+
+    feature: str
+    keys: tuple[str, ...]
+    mode: CitationMode = "bracketed"
+    prefix: str = ""
+    suffix: str = ""
+    locator: str = ""
+    suppress_author: bool = False
+
+    def __post_init__(self) -> None:
+        if not self.keys:
+            raise ValueError("citations need at least one key")
+
+
+@dataclass(frozen=True, slots=True)
 class Span(InlineNode):
     """Pandoc bracketed span: ``[text]{.class}``."""
 
@@ -481,6 +616,8 @@ def children_of(node: MarkdownNode) -> tuple[MarkdownNode, ...]:
     if isinstance(node, LineBlock):
         return tuple(child for line in node.lines for child in line)
     if isinstance(node, FencedDiv):
+        return tuple(node.children)
+    if isinstance(node, DirectiveBlock):
         return tuple(node.children)
     if isinstance(node, Image):
         return tuple(node.alt)
