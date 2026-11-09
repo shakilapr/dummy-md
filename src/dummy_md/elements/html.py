@@ -41,7 +41,9 @@ class HTMLGenerator:
         if feature == "html.summary":
             return HTMLBlock(
                 block_type=6,
-                content=f"<summary>{phrase}</summary>",
+                content=(
+                    f"<details>\n<summary>{phrase}</summary>\n\n{text}\n\n</details>"
+                ),
             )
         if feature == "html.details.nested":
             inner_summary = context.text.phrase(
