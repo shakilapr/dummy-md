@@ -51,12 +51,20 @@ class ImageGenerator:
 
         image = self._image(context, features, options)
         if (
-            "image.figure.caption" in features
-            and context.rng.random() < options.figure_ratio
-        ):
+            "image.figure.caption" in features or "image.figure.label" in features
+        ) and context.rng.random() < options.figure_ratio:
             return Figure(
                 image=image,
-                caption=context.text.phrase(min_words=4, max_words=9, title_case=True),
+                caption=(
+                    context.text.phrase(min_words=4, max_words=9, title_case=True)
+                    if "image.figure.caption" in features
+                    else ""
+                ),
+                label=(
+                    "fig:" + context.text.slug()
+                    if "image.figure.label" in features
+                    else ""
+                ),
             )
         if "image.in_link" in features and context.rng.random() < options.in_link_ratio:
             return Paragraph(

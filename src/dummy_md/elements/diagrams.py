@@ -141,16 +141,306 @@ def _journey(context: GenerationContext) -> str:
     )
 
 
+def _swimlane(context: GenerationContext) -> str:
+    return "\n".join(
+        [
+            "flowchart LR",
+            "    subgraph Requests",
+            f"        {_node(context)} --> {_node(context)}",
+            "    end",
+            "    subgraph Storage",
+            f"        {_node(context)}",
+            "    end",
+        ]
+    )
+
+
+def _quadrant(context: GenerationContext) -> str:
+    return "\n".join(
+        [
+            "quadrantChart",
+            f"    title {_phrase(context, 4)}",
+            "    x-axis Low --> High",
+            "    y-axis Low --> High",
+            "    quadrant-1 Expand",
+            "    quadrant-2 Maintain",
+            "    quadrant-3 Review",
+            "    quadrant-4 Retire",
+            f"    {_node(context)}: [0.3, 0.7]",
+            f"    {_node(context)}: [0.7, 0.4]",
+        ]
+    )
+
+
+def _requirement(context: GenerationContext) -> str:
+    return "\n".join(
+        [
+            "requirementDiagram",
+            "    requirement req1 {",
+            "        id: 1",
+            f"        text: {_phrase(context, 4)}",
+            "        risk: medium",
+            "        verifymethod: test",
+            "    }",
+        ]
+    )
+
+
+def _c4(context: GenerationContext) -> str:
+    first = _node(context)
+    second = _node(context)
+    return "\n".join(
+        [
+            "C4Context",
+            f"    title {_phrase(context, 4)}",
+            f'    Person({first}, "{_phrase(context, 2)}")',
+            f'    System({second}, "{_phrase(context, 2)}")',
+            f'    Rel({first}, {second}, "uses")',
+        ]
+    )
+
+
+def _mindmap(context: GenerationContext) -> str:
+    return "\n".join(
+        [
+            "mindmap",
+            f"  root(({_node(context)}))",
+            f"    {_node(context)}",
+            f"      {_node(context)}",
+            f"    {_node(context)}",
+        ]
+    )
+
+
+def _timeline(context: GenerationContext) -> str:
+    return "\n".join(
+        [
+            "timeline",
+            f"    title {_phrase(context, 4)}",
+            f"    2024 : {_phrase(context, 2)}",
+            f"    2025 : {_phrase(context, 3)}",
+        ]
+    )
+
+
+def _zenuml(context: GenerationContext) -> str:
+    return "\n".join(
+        [
+            "zenuml",
+            f"    {_node(context)}->{_node(context)}: {context.text.word()}",
+        ]
+    )
+
+
+def _sankey(context: GenerationContext) -> str:
+    return "\n".join(
+        [
+            "sankey-beta",
+            f"{_node(context)},{_node(context)},{context.text.number(5, 50)}",
+            f"{_node(context)},{_node(context)},{context.text.number(5, 50)}",
+        ]
+    )
+
+
+def _xy(context: GenerationContext) -> str:
+    return "\n".join(
+        [
+            "xychart-beta",
+            f"    title {_phrase(context, 3)}",
+            "    x-axis [a, b, c]",
+            "    y-axis 0 --> 10",
+            "    bar [3, 6, 4]",
+        ]
+    )
+
+
+def _block(context: GenerationContext) -> str:
+    return "\n".join(
+        [
+            "block-beta",
+            "    columns 2",
+            f"    {_node(context)} {_node(context)}",
+            f"    {_node(context)}",
+        ]
+    )
+
+
+def _packet(context: GenerationContext) -> str:
+    return "\n".join(
+        [
+            "packet-beta",
+            '    0-15: "Source"',
+            '    16-31: "Destination"',
+            '    32-47: "Length"',
+        ]
+    )
+
+
+def _kanban(context: GenerationContext) -> str:
+    return "\n".join(
+        [
+            "kanban",
+            "    todo[Todo]",
+            f"        task1[{_phrase(context, 2)}]",
+            "    done[Done]",
+            f"        task2[{_phrase(context, 2)}]",
+        ]
+    )
+
+
+def _architecture(context: GenerationContext) -> str:
+    return "\n".join(
+        [
+            "architecture-beta",
+            "    group api(cloud)[API]",
+            f"    service web(server)[{_node(context)}] in api",
+            f"    service db(database)[{_node(context)}] in api",
+            "    web:R -- L:db",
+        ]
+    )
+
+
+def _radar(context: GenerationContext) -> str:
+    return "\n".join(
+        [
+            "radar-beta",
+            "    axis a, b, c",
+            f"    curve {_node(context)}{{3, 4, 5}}",
+        ]
+    )
+
+
+def _eventmodeling(context: GenerationContext) -> str:
+    return "\n".join(
+        [
+            "eventmodeling",
+            f"    tf 1 {_node(context)}",
+            f"    tf 2 {_node(context)}",
+        ]
+    )
+
+
+def _treemap(context: GenerationContext) -> str:
+    return "\n".join(
+        [
+            "treemap-beta",
+            f'    "{_node(context)}"',
+            f'        "{_node(context)}": 10',
+            f'        "{_node(context)}": 6',
+        ]
+    )
+
+
+def _venn(context: GenerationContext) -> str:
+    return "\n".join(
+        [
+            "venn-beta",
+            "    sets A, B",
+            "    union A, B",
+        ]
+    )
+
+
+def _ishikawa(context: GenerationContext) -> str:
+    return "\n".join(
+        [
+            "ishikawa",
+            f"    title {_phrase(context, 3)}",
+            f"    {_node(context)}",
+            f"        {_phrase(context, 2)}",
+        ]
+    )
+
+
+def _wardley(context: GenerationContext) -> str:
+    return "\n".join(
+        [
+            "wardley-beta",
+            f"    title {_phrase(context, 3)}",
+            f"    anchor {_node(context)} [0.5, 0.5]",
+            f"    component {_node(context)} [0.6, 0.4]",
+        ]
+    )
+
+
+def _treeview(context: GenerationContext) -> str:
+    return "\n".join(
+        [
+            "treeView-beta",
+            f"    {_node(context)}",
+            f"        {_node(context)}",
+            f"            {_node(context)}",
+        ]
+    )
+
+
+def _graphviz(context: GenerationContext) -> str:
+    return "\n".join(
+        [
+            "digraph G {",
+            f'    "{_node(context)}" -> "{_node(context)}";',
+            "}",
+        ]
+    )
+
+
+def _plantuml(context: GenerationContext) -> str:
+    return "\n".join(
+        [
+            "@startuml",
+            f"{_node(context)} -> {_node(context)} : {context.text.word()}",
+            "@enduml",
+        ]
+    )
+
+
+def _d2(context: GenerationContext) -> str:
+    return "\n".join(
+        [
+            f"{_node(context)} -> {_node(context)}: {context.text.word()}",
+        ]
+    )
+
+
 MERMAID_BODIES: dict[str, Callable[[GenerationContext], str]] = {
     "diagram.mermaid.flowchart": _flowchart,
+    "diagram.mermaid.swimlane": _swimlane,
     "diagram.mermaid.sequence": _sequence,
     "diagram.mermaid.class": _class_diagram,
     "diagram.mermaid.state": _state,
     "diagram.mermaid.er": _er,
-    "diagram.mermaid.gantt": _gantt,
-    "diagram.mermaid.pie": _pie,
     "diagram.mermaid.gitgraph": _gitgraph,
     "diagram.mermaid.journey": _journey,
+    "diagram.mermaid.gantt": _gantt,
+    "diagram.mermaid.pie": _pie,
+    "diagram.mermaid.quadrant": _quadrant,
+    "diagram.mermaid.requirement": _requirement,
+    "diagram.mermaid.c4": _c4,
+    "diagram.mermaid.mindmap": _mindmap,
+    "diagram.mermaid.timeline": _timeline,
+    "diagram.mermaid.zenuml": _zenuml,
+    "diagram.mermaid.sankey": _sankey,
+    "diagram.mermaid.xy": _xy,
+    "diagram.mermaid.block": _block,
+    "diagram.mermaid.packet": _packet,
+    "diagram.mermaid.kanban": _kanban,
+    "diagram.mermaid.architecture": _architecture,
+    "diagram.mermaid.radar": _radar,
+    "diagram.mermaid.eventmodeling": _eventmodeling,
+    "diagram.mermaid.treemap": _treemap,
+    "diagram.mermaid.venn": _venn,
+    "diagram.mermaid.ishikawa": _ishikawa,
+    "diagram.mermaid.wardley": _wardley,
+    "diagram.mermaid.treeview": _treeview,
+    "diagram.graphviz": _graphviz,
+    "diagram.plantuml": _plantuml,
+    "diagram.d2": _d2,
+}
+
+ENGINE_INFOS: dict[str, str] = {
+    "diagram.graphviz": "graphviz",
+    "diagram.plantuml": "plantuml",
+    "diagram.d2": "d2",
 }
 
 
@@ -171,12 +461,17 @@ class DiagramGenerator:
             for feature in context.active_in_family("diagram")
             if feature in MERMAID_BODIES
         ]
-        body = (
-            MERMAID_BODIES[context.weighted_feature(features)](context)
-            if features
-            else _flowchart(context)
-        )
-        return CodeBlock(code=body, info=options.fence_info)
+        if not features:
+            return CodeBlock(code=_flowchart(context), info=options.fence_info)
+        chosen = context.weighted_feature(features)
+        body = MERMAID_BODIES[chosen](context)
+        info = ENGINE_INFOS.get(chosen, options.fence_info)
+        return CodeBlock(code=body, info=info)
 
 
-__all__ = ["DiagramGenerator", "DiagramOptions", "MERMAID_BODIES"]
+__all__ = [
+    "DiagramGenerator",
+    "DiagramOptions",
+    "ENGINE_INFOS",
+    "MERMAID_BODIES",
+]

@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from typing import Literal
 
 from dummy_md.core.context import GenerationContext
-from dummy_md.core.nodes import BlockNode, CodeBlock, MathBlock
+from dummy_md.core.nodes import BlockNode, CodeBlock, MathBlock, MathMacros
 from dummy_md.elements._util import resolve_options
 from dummy_md.elements.payloads import MATH_ENVIRONMENTS, MATH_PAYLOADS
 
@@ -17,6 +17,8 @@ class MathOptions:
     environment_ratio: float = 0.6
     payload_ratio: float = 0.8
     delimiter: Literal["dollar", "bracket", "random"] = "random"
+    label_ratio: float = 0.5
+    macro_ratio: float = 0.15
 
 
 class MathGenerator:
@@ -25,7 +27,26 @@ class MathGenerator:
     def generate(self, context: GenerationContext) -> BlockNode:
         options = resolve_options(context, self.family, MathOptions(), MathOptions)
         features = context.active_in_family("math")
+        if (
+            context.supports("math.macros")
+            and context.rng.random() < options.macro_ratio
+        ):
+            return MathMacros(
+                definitions=tuple(
+                    (
+                        context.text.word(min_length=2, max_length=4),
+                        "\\" + context.text.word(min_length=2, max_length=4),
+                    )
+                    for _ in range(context.text.number(1, 3))
+                )
+            )
         expression = self._expression(context, features, options)
+        label = ""
+        if (
+            context.supports("math.label")
+            and context.rng.random() < options.label_ratio
+        ):
+            label = "eq:" + context.text.slug()
 
         if "math.fence" in features and context.rng.random() < options.fence_ratio:
             return CodeBlock(code=expression, info="math")
@@ -37,11 +58,13 @@ class MathGenerator:
             return MathBlock(
                 expression=self._environment_body(context, environment, expression),
                 environment=environment,
+                label=label,
             )
 
         return MathBlock(
             expression=expression,
             delimiter=self._delimiter(context, features, options),
+            label=label,
         )
 
     # -- helpers ----------------------------------------------------------

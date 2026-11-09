@@ -7,15 +7,24 @@ from dataclasses import dataclass
 
 from dummy_md.core.context import GenerationContext
 from dummy_md.core.nodes import (
+    AbbreviationDefinition,
+    Attributes,
     BlockNode,
     CodeSpan,
+    Critic,
+    CrossRef,
+    EmojiShortcode,
     Emphasis,
+    FencedDiv,
     InlineFootnote,
     InlineNode,
+    LineBlock,
     LineBreak,
     Math,
     Paragraph,
+    Span,
     Strikethrough,
+    StyledSpan,
     Text,
 )
 from dummy_md.elements._util import resolve_options
@@ -48,6 +57,41 @@ _INLINE_BUILDERS: dict[str, Callable[[str], InlineNode]] = {
     "math.inline.dollar": lambda text: Math(expression=text, delimiter="dollar"),
     "math.inline.paren": lambda text: Math(expression=text, delimiter="bracket"),
     "footnote.inline": lambda text: InlineFootnote(children=(Text(text),)),
+    "inline.superscript": lambda text: StyledSpan(
+        children=(Text(text),), syntax="superscript"
+    ),
+    "inline.subscript": lambda text: StyledSpan(
+        children=(Text(text),), syntax="subscript"
+    ),
+    "inline.underline": lambda text: StyledSpan(
+        children=(Text(text),), syntax="underline"
+    ),
+    "inline.highlight": lambda text: StyledSpan(
+        children=(Text(text),), syntax="highlight"
+    ),
+    "inline.insert": lambda text: StyledSpan(children=(Text(text),), syntax="insert"),
+    "inline.critic.deletion": lambda text: Critic(
+        children=(Text(text),), kind="deletion"
+    ),
+    "inline.critic.insertion": lambda text: Critic(
+        children=(Text(text),), kind="insertion"
+    ),
+    "inline.critic.replacement": lambda text: Critic(
+        children=(Text(text),),
+        kind="replacement",
+        replacement=(Text(text.upper()),),
+    ),
+    "inline.critic.highlight": lambda text: Critic(
+        children=(Text(text),), kind="highlight"
+    ),
+    "inline.critic.comment": lambda text: Critic(
+        children=(Text(text),), kind="comment"
+    ),
+    "inline.emoji.shortcode": lambda text: EmojiShortcode(name="smile"),
+    "inline.small_caps": lambda text: Span(
+        children=(Text(text),), attributes=Attributes(classes=("smallcaps",))
+    ),
+    "math.crossref": lambda text: CrossRef(target="eq:" + text[:8]),
 }
 
 
@@ -61,6 +105,7 @@ class ParagraphOptions:
     max_inline: int = 3
     break_ratio: float = 0.35
     emoji_ratio: float = 0.25
+    block_ratio: float = 0.35
 
 
 class ParagraphGenerator:
@@ -72,6 +117,9 @@ class ParagraphGenerator:
         options = resolve_options(
             context, self.family, ParagraphOptions(), ParagraphOptions
         )
+        variant = self._block_variant(context, options)
+        if variant is not None:
+            return variant
         count = context.rng.randint(options.min_sentences, options.max_sentences)
         feature_ids = sorted(
             feature
@@ -101,9 +149,50 @@ class ParagraphGenerator:
             context.rng.random() < options.emoji_ratio
         ):
             children.append(Text(" \U0001f642"))
+        if context.supports("inline.abbreviation.reference"):
+            label = context.text.word(min_length=3, max_length=5).upper()
+            children.insert(0, Text(label + " "))
         return Paragraph(children=tuple(children))
 
     # -- helpers ----------------------------------------------------------
+    def _block_variant(
+        self, context: GenerationContext, options: ParagraphOptions
+    ) -> BlockNode | None:
+        candidates: list[str] = []
+        if context.supports("paragraph.line_block"):
+            candidates.append("paragraph.line_block")
+        if context.supports("paragraph.fenced_div"):
+            candidates.append("paragraph.fenced_div")
+        if context.supports("theorem.block"):
+            candidates.append("theorem.block")
+        if context.supports("inline.abbreviation.definition"):
+            candidates.append("inline.abbreviation.definition")
+        if not candidates or context.rng.random() >= options.block_ratio:
+            return None
+        chosen = context.weighted_feature(candidates)
+        if chosen == "paragraph.line_block":
+            lines = tuple(
+                (Text(context.text.phrase(min_words=2, max_words=5)),)
+                for _ in range(context.text.number(2, 4))
+            )
+            return LineBlock(lines=lines)
+        if chosen == "paragraph.fenced_div":
+            classes = (context.text.word(),)
+            return FencedDiv(
+                children=(Paragraph(children=(Text(context.text.sentence()),)),),
+                info=classes[0],
+                attributes=Attributes(classes=classes),
+            )
+        if chosen == "theorem.block":
+            title = context.text.phrase(min_words=2, max_words=5, title_case=True)
+            return FencedDiv(
+                children=(Paragraph(children=(Text(context.text.sentence()),)),),
+                attributes=Attributes(classes=("theorem",), pairs=(("title", title),)),
+            )
+        label = context.text.word(min_length=3, max_length=5).upper()
+        title = context.text.phrase(min_words=3, max_words=7, title_case=True)
+        return AbbreviationDefinition(label=label, title=title)
+
     def _inter_sentence_break(
         self, context: GenerationContext, options: ParagraphOptions
     ) -> LineBreak | None:

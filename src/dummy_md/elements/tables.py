@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import cast
 
 from dummy_md.core.context import GenerationContext
 from dummy_md.core.nodes import (
@@ -17,6 +18,7 @@ from dummy_md.core.nodes import (
     Strikethrough,
     Table,
     TableCell,
+    TableStyle,
     Text,
 )
 from dummy_md.elements._util import resolve_options
@@ -51,6 +53,7 @@ class TableOptions:
     header_only_ratio: float = 0.1
     caption_ratio: float = 0.25
     many_ratio: float = 0.2
+    style_ratio: float = 0.3
     min_cell_words: int = 1
     max_cell_words: int = 3
 
@@ -99,7 +102,19 @@ class TableGenerator:
             alignments=alignments,
             outer_pipes=outer_pipes,
             caption=caption,
+            style=self._style(context, options),
         )
+
+    def _style(self, context: GenerationContext, options: TableOptions) -> TableStyle:
+        candidates = [
+            feature
+            for feature in ("table.simple", "table.multiline")
+            if context.supports(feature)
+        ]
+        if not candidates or context.rng.random() >= options.style_ratio:
+            return "pipe"
+        chosen = context.weighted_feature(candidates)
+        return cast(TableStyle, chosen.split(".")[1])
 
     # -- helpers ----------------------------------------------------------
     def _row_count(self, context: GenerationContext, options: TableOptions) -> int:

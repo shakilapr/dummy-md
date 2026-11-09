@@ -6,6 +6,7 @@ from dataclasses import dataclass
 
 from dummy_md.core.context import GenerationContext
 from dummy_md.core.nodes import (
+    Attributes,
     Autolink,
     BlockNode,
     InlineNode,
@@ -13,6 +14,7 @@ from dummy_md.core.nodes import (
     LinkDefinition,
     Paragraph,
     Text,
+    WikiLink,
 )
 from dummy_md.elements._util import resolve_options
 
@@ -30,6 +32,7 @@ class LinkOptions:
     max_links: int = 3
     title_ratio: float = 0.35
     reference_ratio: float = 0.4
+    wiki_ratio: float = 0.4
 
 
 class LinkGenerator:
@@ -44,6 +47,10 @@ class LinkGenerator:
         for index in range(count):
             if index:
                 children.append(Text(" "))
+            wiki = self._wiki(context, options)
+            if wiki is not None:
+                children.append(wiki)
+                continue
             reference = (
                 self._reference_feature(features) if context.block_hint >= 400 else None
             )
@@ -61,6 +68,33 @@ class LinkGenerator:
         return Paragraph(children=tuple(children))
 
     # -- forms ------------------------------------------------------------
+    def _wiki(
+        self, context: GenerationContext, options: LinkOptions
+    ) -> InlineNode | None:
+        if not context.supports("link.wiki.basic"):
+            return None
+        if context.rng.random() >= options.wiki_ratio:
+            return None
+        target = context.text.label()
+        return WikiLink(
+            target=target,
+            alias=(
+                context.text.label()
+                if context.supports("link.wiki.alias") and context.rng.random() < 0.5
+                else ""
+            ),
+            heading=(
+                context.text.heading_phrase(2)
+                if context.supports("link.wiki.heading") and context.rng.random() < 0.4
+                else ""
+            ),
+            block=(
+                "block-" + context.text.slug()
+                if context.supports("link.wiki.block") and context.rng.random() < 0.3
+                else ""
+            ),
+        )
+
     def _plain_link(
         self,
         context: GenerationContext,
@@ -95,6 +129,11 @@ class LinkGenerator:
             destination=destination,
             title=title,
             title_delimiter=delimiter,  # type: ignore[arg-type]
+            attributes=(
+                Attributes(classes=(context.text.word(),))
+                if context.supports("link.attributes") and context.rng.random() < 0.3
+                else None
+            ),
         )
 
     def _reference_link(

@@ -3,16 +3,20 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import cast
 
 from dummy_md.core.context import GenerationContext
 from dummy_md.core.nodes import (
     BlockNode,
     Blockquote,
     CodeBlock,
+    DefinitionItem,
+    DefinitionList,
     Heading,
     InlineNode,
     ListBlock,
     ListItem,
+    ListStyle,
     Paragraph,
     Text,
 )
@@ -30,6 +34,7 @@ class ListOptions:
     ordered_ratio: float = 0.4
     multi_paragraph_ratio: float = 0.15
     extra_block_ratio: float = 0.18
+    definition_ratio: float = 0.25
 
 
 class ListGenerator:
@@ -37,7 +42,23 @@ class ListGenerator:
 
     def generate(self, context: GenerationContext) -> BlockNode:
         options = resolve_options(context, self.family, ListOptions(), ListOptions)
+        if (
+            context.supports("list.definition")
+            and context.rng.random() < options.definition_ratio
+        ):
+            return self._definition_list(context)
         return self._build(context, options, depth=0)
+
+    def _definition_list(self, context: GenerationContext) -> DefinitionList:
+        items: list[DefinitionItem] = []
+        for _ in range(context.text.number(2, 4)):
+            term = (Text(context.text.phrase(min_words=1, max_words=3)),)
+            definitions = tuple(
+                (self._item_paragraph(context),)
+                for _ in range(context.text.number(1, 2))
+            )
+            items.append(DefinitionItem(term=term, definitions=definitions))
+        return DefinitionList(items=tuple(items))
 
     def _item_paragraph(self, context: GenerationContext) -> Paragraph:
         sentences = context.rng.randint(1, 3)
@@ -57,13 +78,31 @@ class ListGenerator:
         for _ in range(count):
             items.append(self._item(context, options, depth=depth, ordered=ordered))
         tight = self._tight(context, options, items)
+        style = self._style(context, ordered)
         return ListBlock(
             ordered=ordered,
             items=tuple(items),
             delimiter=self._delimiter(context, ordered),
             start=self._start(context),
             tight=tight,
+            style=style,
         )
+
+    def _style(self, context: GenerationContext, ordered: bool) -> ListStyle:
+        if not ordered:
+            return "decimal"
+        candidates: list[ListStyle] = []
+        if context.supports("list.example_numbered"):
+            candidates.append("example")
+        if context.supports("list.ordered.alpha"):
+            candidates.append("alpha")
+        if context.supports("list.ordered.roman"):
+            candidates.append("roman")
+        if not candidates:
+            return "decimal"
+        if len(candidates) == 1:
+            return candidates[0]
+        return cast(ListStyle, context.weighted_feature(candidates))
 
     def _item(
         self,
@@ -140,7 +179,14 @@ class ListGenerator:
 
     def _ordered(self, context: GenerationContext, options: ListOptions) -> bool:
         ordered_ok = context.supports_any(
-            ("list.ordered.dot", "list.ordered.paren", "list.ordered.start")
+            (
+                "list.ordered.dot",
+                "list.ordered.paren",
+                "list.ordered.start",
+                "list.ordered.alpha",
+                "list.ordered.roman",
+                "list.example_numbered",
+            )
         )
         unordered_ok = context.supports_any(
             ("list.unordered.hyphen", "list.unordered.asterisk", "list.unordered.plus")

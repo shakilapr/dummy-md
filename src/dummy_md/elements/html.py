@@ -80,6 +80,70 @@ class HTMLGenerator:
                     f"  <tr><td>{phrase}</td><td>{text}</td></tr>\n</table>"
                 ),
             )
+        if feature == "html.img":
+            return HTMLBlock(
+                block_type=6,
+                content=(
+                    f'<img src="https://example.com/{context.text.slug()}.png" '
+                    f'alt="{phrase}" width="320">'
+                ),
+            )
+        if feature == "html.picture":
+            return HTMLBlock(
+                block_type=6,
+                content=(
+                    "<picture>\n"
+                    f'  <source srcset="https://example.com/'
+                    f'{context.text.slug()}.webp" '
+                    'type="image/webp">\n'
+                    f'  <img src="https://example.com/{context.text.slug()}.png" '
+                    f'alt="{phrase}">\n'
+                    "</picture>"
+                ),
+            )
+        if feature in {"html.audio", "html.video"}:
+            tag = feature.split(".")[1]
+            source = context.text.slug()
+            return HTMLBlock(
+                block_type=6,
+                content=(
+                    f"<{tag} controls>\n"
+                    f'  <source src="https://example.com/{source}.'
+                    f'{"mp3" if tag == "audio" else "mp4"}" '
+                    f'type="{"audio/mpeg" if tag == "audio" else "video/mp4"}">\n'
+                    f"</{tag}>"
+                ),
+            )
+        if feature == "html.iframe":
+            return HTMLBlock(
+                block_type=6,
+                content=(
+                    f'<iframe src="https://example.com/{context.text.slug()}" '
+                    f'title="{phrase}" width="560" height="315"></iframe>'
+                ),
+            )
+        if feature == "html.svg.inline":
+            return self._paragraph(
+                context,
+                RawHTML(
+                    content=(
+                        '<svg width="120" height="40" '
+                        'xmlns="http://www.w3.org/2000/svg">'
+                        '<rect width="120" height="40" fill="none" '
+                        'stroke="currentColor"/>'
+                        f'<text x="8" y="24">{phrase}</text></svg>'
+                    )
+                ),
+            )
+        if feature == "html.parsed_markdown":
+            return HTMLBlock(
+                block_type=6,
+                content=(
+                    '<div markdown="1">\n\n'
+                    f"**{phrase}** and _emphasis_ inside HTML.\n\n"
+                    "</div>"
+                ),
+            )
         tags = {
             "html.div": "div",
             "html.section": "section",
