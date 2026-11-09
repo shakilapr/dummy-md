@@ -162,6 +162,10 @@ class ListBlock(BlockNode):
             )
         if self.ordered and self.start < 0:
             raise ValueError("ordered list start must be non-negative")
+        if self.style not in {"decimal", "alpha", "roman", "example"}:
+            raise ValueError(f"unknown list style {self.style!r}")
+        if self.style != "decimal" and not self.ordered:
+            raise ValueError(f"list style {self.style!r} requires an ordered list")
 
 
 @dataclass(frozen=True, slots=True)
@@ -210,6 +214,8 @@ class Table(BlockNode):
     def __post_init__(self) -> None:
         if self.alignments and len(self.alignments) != len(self.header):
             raise ValueError("one alignment is required per header cell")
+        if self.style not in {"pipe", "simple", "multiline"}:
+            raise ValueError(f"unknown table style {self.style!r}")
 
 
 @dataclass(frozen=True, slots=True)

@@ -108,3 +108,17 @@ def test_footnote_definitions_are_nodes() -> None:
         label="1", children=(Paragraph(children=(Text("note"),)),)
     )
     assert len(children_of(definition)) == 1
+
+
+def test_list_style_validation() -> None:
+    with pytest.raises(ValueError, match="requires an ordered list"):
+        ListBlock(style="alpha")
+    with pytest.raises(ValueError, match="unknown list style"):
+        ListBlock(ordered=True, style="greek")  # type: ignore[arg-type]
+    assert ListBlock(ordered=True, style="alpha").style == "alpha"
+
+
+def test_table_style_validation() -> None:
+    with pytest.raises(ValueError, match="unknown table style"):
+        Table(style="grid")  # type: ignore[arg-type]
+    assert Table(style="simple").style == "simple"

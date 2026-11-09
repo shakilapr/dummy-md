@@ -16,6 +16,12 @@ class GFMRenderer(CommonMarkRenderer):
     """CommonMark plus pipe tables and Pandoc simple/multiline tables."""
 
     def _table(self, node: Table) -> str:
+        for cell in (*node.header, *(cell for row in node.rows for cell in row)):
+            if cell.colspan != 1 or cell.rowspan != 1:
+                raise DialectError(
+                    "row and column spans are not implemented by any renderer yet",
+                    dialects=("extended", "stress"),
+                )
         pandoc_ready = _pandoc_table_supported(node)
         if node.style == "simple" and pandoc_ready:
             return self._simple_table(node)
