@@ -251,7 +251,7 @@ class CommonMarkRenderer(BaseRenderer):
     def _front_matter(self, node: FrontMatter) -> str:
         self.require("frontmatter.yaml", "front matter")
         if node.format == "json":
-            return "{\n" + node.content.strip("\n") + "\n}"
+            return node.content.strip("\n")
         fence = "---" if node.format == "yaml" else "+++"
         return f"{fence}\n{node.content.strip(chr(10))}\n{fence}"
 

@@ -503,6 +503,30 @@ def test_frontmatter_fields_follow_active_meta_features() -> None:
     assert "tags:" in block.content
 
 
+def test_frontmatter_documents_are_well_formed() -> None:
+    import json
+
+    block = generate_block(
+        "frontmatter", dialect="extended", include=("frontmatter.json",), seed=4
+    )
+    assert isinstance(block, FrontMatter)
+    assert isinstance(json.loads(block.content), dict)
+
+    rendered = get_renderer(build_context(dialect="extended").dialect).render(
+        document_of(block)
+    )
+    assert rendered.count("{") == rendered.count("}") == 1
+
+    yaml_block = generate_block(
+        "frontmatter", dialect="extended", include=("frontmatter.yaml",), seed=4
+    )
+    assert isinstance(yaml_block, FrontMatter)
+    rendered_yaml = get_renderer(build_context(dialect="extended").dialect).render(
+        document_of(yaml_block)
+    )
+    assert rendered_yaml.startswith("---\n")
+
+
 # -- whole-catalog smoke -----------------------------------------------------
 def test_every_implemented_feature_generates_and_parses() -> None:
     families = sorted(
