@@ -19,9 +19,9 @@ class Preset:
     description: str
     include: tuple[str, ...] = ()
     exclude: tuple[str, ...] = ()
-    text_style: str = "pseudowords"
+    text_style: str = ""
     dialect: str = ""
-    max_nesting_depth: int = 3
+    max_nesting_depth: int | None = None
     elements: Mapping[str, ElementRule] = field(
         default_factory=lambda: MappingProxyType({})
     )
@@ -33,7 +33,11 @@ class Preset:
             exclude=self.exclude or spec.exclude,
             text_style=self.text_style or spec.text_style,
             dialect=self.dialect or spec.dialect,
-            max_nesting_depth=self.max_nesting_depth,
+            max_nesting_depth=(
+                spec.max_nesting_depth
+                if self.max_nesting_depth is None
+                else self.max_nesting_depth
+            ),
             elements=self.elements or spec.elements,
         )
 
