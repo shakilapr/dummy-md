@@ -755,6 +755,14 @@ def test_unknown_text_style_names_the_valid_set() -> None:
         DocumentSpec(text_style="nope")
 
 
+def test_preset_only_overrides_depth_when_set(restore_globals: None) -> None:
+    deep = DocumentSpec(seed=1, length=LengthSpec(300), max_nesting_depth=6)
+    keep = Preset(name="keep", description="keeps the spec depth")
+    assert keep.apply(deep).max_nesting_depth == 6
+    shallow = Preset(name="shallow", description="caps depth", max_nesting_depth=1)
+    assert shallow.apply(deep).max_nesting_depth == 1
+
+
 def test_custom_preset(restore_globals: None) -> None:
     preset = Preset(
         name="headings-only",

@@ -547,8 +547,6 @@ def test_every_implemented_feature_generates_and_parses() -> None:
             context.rng.seed(13)
             block = REGISTRY.generator(spec.generator).generate(context)
             document = document_of(block)
-            if spec.family == "frontmatter":
-                pass
             text = get_renderer(context.dialect).render(document)
             PARSER.parse(text)
         except Exception as error:  # noqa: BLE001 - report, do not stop
