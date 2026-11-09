@@ -120,12 +120,13 @@ equals `generate()` for the same spec.
 | `extended` | GFM + heading/code attributes, figure captions, footnotes, math, callouts, Mermaid, front matter |
 | `stress` | same capability set as `extended`; the `stress` preset adds token text and deeper nesting |
 
-Counts: 423 catalogued generation targets, 297 currently implemented (129 CommonMark, 163 GFM,
-297 extended). Newly covered: Pandoc line blocks, fenced divs, definition lists, alpha/Roman/
-example lists, wiki links, simple/multiline tables, CriticMarkup, superscript/subscript/
-underline/highlight/insert, small caps, emoji shortcodes, abbreviations, inline math labels,
-LaTeX macros and cross-references, theorem blocks, 24 more diagram families, and SVG/media/
-iframe/picture/table-part HTML.
+Counts: 423 catalogued generation targets, 422 currently implemented (129 CommonMark, 163 GFM,
+373 extended, 422 stress). Newly covered: Pandoc grid tables with spans, citations and
+bibliography scaffolding, MyST/MkDocs/Quarto directives and roles, MDX ESM/expressions/JSX,
+Obsidian tags/embeds/properties/comments/block ids, GitLab references and placeholders,
+Docusaurus code titles/highlights, Quarto code chunks, code annotations and line numbers,
+implicit figures, the Mermaid use-case family, and the full stress-text inventory besides the
+large-document preset.
 
 ```bash
 dummy-md elements --dialect gfm     # implemented ids for a dialect
@@ -324,6 +325,22 @@ assert (
 
 All randomness flows through one seeded `random.Random`; nothing reads the clock, environment,
 or hash order.
+
+## Examples
+
+`examples/` holds four committed showcases — CommonMark, GFM, extended and stress — each paired
+with the exact JSON spec that produced it:
+
+```bash
+dummy-md generate --spec examples/extended-showcase.json > /tmp/extended.md
+```
+
+`scripts/generate_outputs.py` regenerates those examples and writes a larger, git-ignored
+`outputs/` tree (`outputs/<dialect>/`, `outputs/families/`, `outputs/seeds/`) for browsing:
+
+```bash
+python scripts/generate_outputs.py
+```
 
 ## Development
 

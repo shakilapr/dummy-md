@@ -101,9 +101,10 @@ the target is met. It never slices rendered output.
 ## 4. Feature Model
 
 A **feature** is one addressable generation target. Features are grouped into families and
-classified by kind, tier, and dialect support. Fifteen families have generators; the rest
-(`citation`, `directive`, `platform`, `mdx`, `stress`, `theorem`) are catalog-only until their
-renderers exist.
+classified by kind, tier, and dialect support. Nineteen families have generators: the original
+block and inline families plus `citation`, `directive`, `platform` and `mdx`. The `stress`
+fixtures are emitted through the paragraph, code, list and link generators; only
+`stress.document.large` remains a catalogued test variation rather than a syntax element.
 
 ### 4.1 Compatibility legend
 
@@ -205,6 +206,30 @@ Selection is a capability filter, not a checklist: `include` decides which synta
 while per-generator option ratios decide how often each variant actually appears. A one-block
 document can therefore contain none of a permitted variant; the catalog promises that the
 engine *can* emit a feature, and the fidelity tests prove that path exists.
+
+---
+
+### 4.6 Documentation and platform families
+
+- **Citations.** `Citation` carries keys, bracketed/narrative mode, prefix, suffix, locator and
+  suppress-author flag. The renderer emits Pandoc citation syntax; bibliography entries are
+  `FrontMatter` blocks, which the engine hoists to the document start and merges with the
+  front-matter generator's metadata.
+- **Directives.** `DirectiveBlock` and `DirectiveInline` carry a style (`myst`, `mkdocs`,
+  `quarto`), name, argument, title and options. The renderer owns the colon fence, `!!!`/`???`
+  admonition header, `=== "Tab"` header or Quarto fenced-div spelling.
+- **MDX.** `MdxBlock` and `MdxInline` carry raw ESM/JSX payload; the renderer requires the
+  originating feature and emits the payload verbatim. JSX is never generated as Markdown text.
+- **Platform syntax.** `Embed`, `Tag`, `InlineComment`, `BlockId`, `PlatformRef` and
+  `CodeBlock.meta` cover Obsidian, GitLab and Docusaurus constructs. Platform code-title,
+  highlight, line-number and annotation features are expressed through `CodeBlock` fields, not
+  raw fenced strings.
+- **Grid tables.** `Table(style="grid")` is rendered by a fixed-width layout pass. Row and column
+  spans are laid out by occupancy; Pandoc's reader accepts the table but discards span metadata,
+  which is recorded as a known limitation rather than hidden.
+- **Stress fixtures.** Paragraph variants emit escape nodes, character references, Unicode
+  samples and explicit LF/CRLF line-break nodes. Raw-byte line endings never pass through the
+  normal text escaper.
 
 ---
 
@@ -328,6 +353,9 @@ classDiagram
         +str fence_char
         +int fence_length
         +bool indented
+        +str meta
+        +tuple[str] annotations
+        +str feature
     }
     class HTMLBlock {
         +int block_type
@@ -353,6 +381,24 @@ classDiagram
         +tuple[BlockNode] children
         +str info
         +Attributes attributes
+    }
+    class DirectiveBlock {
+        +str feature
+        +str style
+        +str name
+        +str argument
+        +str title
+        +tuple[tuple[str, str]] options
+        +tuple[BlockNode] children
+    }
+    class MdxBlock {
+        +str feature
+        +str code
+    }
+    class Bibliography {
+        +str feature
+        +str kind
+        +str content
     }
     class LineBlock {
         +tuple[tuple[InlineNode]] lines
@@ -450,6 +496,49 @@ classDiagram
         +str target
         +str kind
     }
+    class DirectiveInline {
+        +str feature
+        +str style
+        +str name
+        +str argument
+    }
+    class MdxInline {
+        +str feature
+        +str code
+    }
+    class Embed {
+        +str feature
+        +str target
+        +str fragment
+        +int width
+        +int height
+    }
+    class Tag {
+        +str feature
+        +str name
+    }
+    class InlineComment {
+        +str feature
+        +str text
+    }
+    class BlockId {
+        +str feature
+        +str name
+    }
+    class PlatformRef {
+        +str feature
+        +str kind
+        +str value
+    }
+    class Citation {
+        +str feature
+        +tuple[str] keys
+        +str mode
+        +str prefix
+        +str suffix
+        +str locator
+        +bool suppress_author
+    }
     class StyledSpan {
         +tuple[InlineNode] children
         +str syntax
@@ -483,6 +572,8 @@ classDiagram
     class Figure {
         +Image image
         +str caption
+        +str label
+        +bool implicit
     }
 
     MarkdownNode <|-- BlockNode
@@ -966,7 +1057,7 @@ changes do not produce false failures.
 | Area | Decision | Rationale |
 | :-- | :-- | :-- |
 | Representation | Immutable typed AST | Delimiter safety, structural validation, dialect decoupling |
-| Feature model | Data (`FeatureSpec`), not classes | 420 catalog targets without 420 classes |
+| Feature model | Data (`FeatureSpec`), not classes | 423 catalog targets without 423 classes |
 | Randomness | One seeded `random.Random` | Reproducibility, no global side effects |
 | Selection | Constraint-first, weighted-second | Mandatory features always appear |
 | Length | Measure-and-resize elastic nodes | No broken syntax from slicing |

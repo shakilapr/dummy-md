@@ -6,8 +6,8 @@ built and verified. Feature ids refer to the machine-readable catalog in
 
 Legend: `[x]` implemented and tested · `[ ]` planned · `[-]` deliberately out of scope for now.
 
-**Status:** 423 catalogued targets, 297 implemented (129 CommonMark, 163 GFM, 297 extended).
-412 tests, `mypy --strict` clean, `ruff` clean.
+**Status:** 423 catalogued targets, 422 implemented (129 CommonMark, 163 GFM, 373 extended,
+422 stress). 538 tests, `mypy --strict` clean, `ruff` clean.
 
 ---
 
@@ -75,10 +75,10 @@ Legend: `[x]` implemented and tested · `[ ]` planned · `[-]` deliberately out 
 - [x] Footnotes: reference plus definition closure, multiline bodies.
 - [x] Math: inline/display delimiters, LaTeX environments, payload families.
 - [x] Callouts: GitHub alerts and Obsidian kinds, foldable/nested variants.
-- [x] Diagrams: nine Mermaid diagram families as fenced blocks.
+- [x] Diagrams: 30 Mermaid diagram families plus Graphviz, PlantUML and D2 fenced blocks.
 - [x] Front matter: YAML, TOML, JSON with metadata schemas.
-- [ ] Stress fixtures: escapes, Unicode scripts, CRLF, adjacent delimiters (catalogued, not yet
-      selectable).
+- [x] Stress fixtures: escapes, Unicode scripts, CRLF/LF, tabs, adjacent delimiters, deep lists,
+      percent-encoded URLs and long unbroken text.
 
 ## M6 — Customization `[x]`
 
@@ -149,27 +149,20 @@ not installed).
 
 ## Next up
 
-1. **Grid tables** — needs a dedicated layout pass for row/column spans; `table.simple` and
-   `table.multiline` already cover span-free tables.
-2. **Code-block extras** — Docusaurus titles/highlights, line numbers, PyMdown annotations,
-   Quarto executable chunks and GitLab JSON tables need extra `CodeBlock` fields.
-3. **Citations** — bracketed/narrative/locator forms plus bibliography fixtures.
-4. **Platform families** — Obsidian properties/embeds, GitLab references/includes, MyST/MkDocs/
-   Quarto directives; each needs a parser to verify output before it is marked implemented.
-5. **Stress fixtures** — the 30 `stress.*` rows need raw-byte emission (escapes, CRLF, tabs,
-   zero-width characters) instead of the normal escaping path.
-6. **MDX** — JSX/expressions require a dedicated dialect and renderer.
-7. **CLI streaming for byte targets** — `--size` streams sections but does not precompute
+1. **Grid-table spans in Pandoc** — the grid renderer emits row/column spans, but Pandoc's
+   reader drops span information; a MultiMarkdown/docutils parser check would tighten fidelity.
+2. **Quarto/MyST execution fixtures** — chunks and directives are emitted, never executed.
+3. **Large-document stress preset** — `stress.document.large` is a document-level test variation,
+   not a syntax element, and stays a preset rather than a feature.
+4. **CLI streaming for byte targets** — `--size` streams sections but does not precompute
    section counts from bytes.
 
 ---
 
 ## Out of scope (catalogued only)
 
-- `[-]` MDX/JSX emission: needs a JS-aware renderer and JSX validation.
 - `[-]` Executable chunks (Quarto, MyST): content is generated, execution never attempted.
-- `[-]` Obsidian properties and GitLab-only macros: no parser to verify them.
-- `[-]` Citations and bibliography fixtures: require a multi-file corpus model.
+- `[-]` MDX runtime validation: JSX is emitted as payload, not type-checked.
 
 ---
 
