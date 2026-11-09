@@ -29,6 +29,16 @@ from dummy_md.core.nodes import (
 )
 from dummy_md.elements._util import resolve_options
 
+
+def _crossref_target(text: str) -> str:
+    words = [
+        "".join(ch for ch in word.lower() if ch.isalnum())
+        for word in text.split(" ")[:2]
+    ]
+    cleaned = "-".join(word for word in words if word)
+    return "eq:" + (cleaned or "label")
+
+
 _INLINE_BUILDERS: dict[str, Callable[[str], InlineNode]] = {
     "inline.emphasis.asterisk": lambda text: Emphasis(
         children=(Text(text),), level=1, delimiter="*"
@@ -58,10 +68,10 @@ _INLINE_BUILDERS: dict[str, Callable[[str], InlineNode]] = {
     "math.inline.paren": lambda text: Math(expression=text, delimiter="bracket"),
     "footnote.inline": lambda text: InlineFootnote(children=(Text(text),)),
     "inline.superscript": lambda text: StyledSpan(
-        children=(Text(text),), syntax="superscript"
+        children=(Text(text.split(" ")[0]),), syntax="superscript"
     ),
     "inline.subscript": lambda text: StyledSpan(
-        children=(Text(text),), syntax="subscript"
+        children=(Text(text.split(" ")[0]),), syntax="subscript"
     ),
     "inline.underline": lambda text: StyledSpan(
         children=(Text(text),), syntax="underline"
@@ -91,7 +101,7 @@ _INLINE_BUILDERS: dict[str, Callable[[str], InlineNode]] = {
     "inline.small_caps": lambda text: Span(
         children=(Text(text),), attributes=Attributes(classes=("smallcaps",))
     ),
-    "math.crossref": lambda text: CrossRef(target="eq:" + text[:8]),
+    "math.crossref": lambda text: CrossRef(target=_crossref_target(text)),
 }
 
 

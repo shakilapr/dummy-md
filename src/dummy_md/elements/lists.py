@@ -79,10 +79,15 @@ class ListGenerator:
             items.append(self._item(context, options, depth=depth, ordered=ordered))
         tight = self._tight(context, options, items)
         style = self._style(context, ordered)
+        delimiter = (
+            "."
+            if style in {"alpha", "roman", "example"}
+            else self._delimiter(context, ordered)
+        )
         return ListBlock(
             ordered=ordered,
             items=tuple(items),
-            delimiter=self._delimiter(context, ordered),
+            delimiter=delimiter,
             start=self._start(context),
             tight=tight,
             style=style,

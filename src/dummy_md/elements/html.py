@@ -125,6 +125,7 @@ class HTMLGenerator:
         if feature == "html.svg.inline":
             return self._paragraph(
                 context,
+                Text(" "),
                 RawHTML(
                     content=(
                         '<svg width="120" height="40" '

@@ -75,6 +75,9 @@ class LinkGenerator:
             return None
         if context.rng.random() >= options.wiki_ratio:
             return None
+        return self._wiki_node(context)
+
+    def _wiki_node(self, context: GenerationContext) -> WikiLink:
         target = context.text.label()
         return WikiLink(
             target=target,
@@ -108,6 +111,8 @@ class LinkGenerator:
         if "link.inline" not in features and not any(
             feature.startswith("link.path.") for feature in features
         ):
+            if context.supports("link.wiki.basic"):
+                return self._wiki_node(context)
             return Text(context.text.url())
 
         destination = self._destination(context, features)
