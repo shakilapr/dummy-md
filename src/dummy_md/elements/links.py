@@ -44,7 +44,9 @@ class LinkGenerator:
         for index in range(count):
             if index:
                 children.append(Text(" "))
-            reference = self._reference_feature(features)
+            reference = (
+                self._reference_feature(features) if context.block_hint >= 400 else None
+            )
             if reference and context.rng.random() < options.reference_ratio:
                 children.append(self._reference_link(context, features, reference))
                 if (

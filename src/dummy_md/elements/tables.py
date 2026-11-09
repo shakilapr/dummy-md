@@ -50,6 +50,8 @@ class TableOptions:
     inline_ratio: float = 0.3
     header_only_ratio: float = 0.1
     caption_ratio: float = 0.25
+    min_cell_words: int = 1
+    max_cell_words: int = 3
 
 
 class TableGenerator:
@@ -139,6 +141,9 @@ class TableGenerator:
         ):
             return ()
         text = context.text.table_cell(numeric_ratio=options.numeric_ratio)
+        if not text.replace(".", "").isdigit():
+            count = context.rng.randint(options.min_cell_words, options.max_cell_words)
+            text = " ".join(context.text.words(count))
         styles = [feature for feature in _CELL_STYLES if context.supports(feature)]
         if not styles or context.rng.random() >= options.inline_ratio:
             return (Text(text),)

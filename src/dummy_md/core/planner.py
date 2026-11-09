@@ -77,10 +77,17 @@ class Planner:
         return block
 
     # -- structural skeleton ---------------------------------------------
-    def skeleton(self, *, section_index: int) -> list[BlockNode]:
+    def skeleton(
+        self,
+        *,
+        section_index: int,
+        allow_frontmatter: bool = True,
+        allow_title: bool = True,
+    ) -> list[BlockNode]:
         blocks: list[BlockNode] = []
         if (
             section_index == 0
+            and allow_frontmatter
             and self.spec.include_frontmatter
             and "frontmatter" in self.schedule
             and not self.frontmatter_emitted
@@ -89,6 +96,7 @@ class Planner:
             self.frontmatter_emitted = True
         if (
             section_index == 0
+            and allow_title
             and self.spec.heading_skeleton
             and "heading" in self.schedule
         ):

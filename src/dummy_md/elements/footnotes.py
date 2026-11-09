@@ -23,6 +23,10 @@ class FootnoteGenerator:
     family = "footnote"
 
     def generate(self, context: GenerationContext) -> BlockNode:
+        if context.block_hint < 400:
+            # A footnote definition adds an unavoidable document trailer; skip it
+            # when the surrounding section budget is smaller than the trailer.
+            return Paragraph(children=(Text(context.text.sentence()),))
         label = context.refs.footnote_label()
         body = Paragraph(
             children=(

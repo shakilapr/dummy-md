@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from types import MappingProxyType
 
@@ -57,8 +57,8 @@ class DocumentSpec:
     dialect: str = "gfm"
     seed: int = 0
     length: LengthSpec = field(default_factory=lambda: LengthSpec(1000))
-    include: tuple[str, ...] = ()
-    exclude: tuple[str, ...] = ()
+    include: Sequence[str] = ()
+    exclude: Sequence[str] = ()
     elements: Mapping[str, ElementRule] = field(
         default_factory=lambda: MappingProxyType({})
     )
@@ -68,6 +68,8 @@ class DocumentSpec:
     include_frontmatter: bool = True
 
     def __post_init__(self) -> None:
+        object.__setattr__(self, "include", tuple(self.include))
+        object.__setattr__(self, "exclude", tuple(self.exclude))
         if self.dialect not in DIALECTS:
             raise DialectError(
                 f"unknown dialect {self.dialect!r}", dialects=sorted(DIALECTS)

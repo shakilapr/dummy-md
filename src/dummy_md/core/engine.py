@@ -79,9 +79,12 @@ class Generator:
             target = max(1, remaining // remaining_sections)
             document = self._build_section(context, planner, index, target, renderer)
             floor = self._floor(planner, len(document.children))
-            tracker = self._tracker(target)
             fitted, text = fit_document(
-                document, renderer, tracker, context, floor_blocks=floor
+                document,
+                renderer,
+                self._tracker(target),
+                context,
+                floor_blocks=floor,
             )
             remaining = max(0, remaining - self._consumed(fitted, text))
             yield text
@@ -151,41 +154,72 @@ class Generator:
         target: int,
         renderer: BaseRenderer,
     ) -> Document:
-        blocks = planner.skeleton(section_index=index)
-        estimate = sum(self._block_measure(block, renderer) for block in blocks)
+        context.block_hint = self._block_hint(target)
+        blocks = planner.skeleton(
+            section_index=index,
+            allow_frontmatter=self._frontmatter_fits(target),
+            allow_title=self._title_fits(target),
+        )
+        skeleton_count = len(blocks)
         while planner.can_continue():
-            if estimate >= target * _FILL_TARGET and not planner.remaining_minimum():
+            document = self._assemble(context, blocks)
+            if (
+                self._document_measure(document, renderer) >= target * _FILL_TARGET
+                and not planner.remaining_minimum()
+            ):
                 break
             block = planner.next_block()
             if block is None:
                 break
             blocks.append(block)
-            estimate += self._block_measure(block, renderer)
-        blocks = self._trim(blocks, planner, target, renderer)
+        blocks = self._trim(context, blocks, planner, target, renderer, skeleton_count)
+        return self._assemble(context, blocks)
+
+    def _assemble(
+        self, context: GenerationContext, blocks: list[BlockNode]
+    ) -> Document:
         return Document(
             children=tuple(blocks),
             link_definitions=tuple(context.refs.links.values()),
             footnote_definitions=tuple(context.refs.footnotes.values()),
         )
 
-    def _block_measure(self, block: BlockNode, renderer: BaseRenderer) -> int:
-        unit = self.spec.length.unit
-        if unit == "blocks":
-            return 1
-        document = Document(children=(block,))
+    def _document_measure(self, document: Document, renderer: BaseRenderer) -> int:
+        if self.spec.length.unit == "blocks":
+            return len(document.children)
         text = renderer.render(document)
+        return measure(document, text, self.spec.length.unit)
+
+    def _block_hint(self, target: int) -> int:
+        unit = self.spec.length.unit
+        if unit in {"chars", "bytes"}:
+            return max(60, target)
         if unit == "words":
-            return measure(document, text, "words")
-        if unit == "lines":
-            return measure_text(text, "lines") + 1
-        return len(text) + 1
+            return max(60, target * 6)
+        return max(60, target * 120)
+
+    def _frontmatter_fits(self, target: int) -> bool:
+        unit = self.spec.length.unit
+        if unit in {"chars", "bytes"}:
+            return target >= 500
+        if unit == "words":
+            return target >= 80
+        return True
+
+    def _title_fits(self, target: int) -> bool:
+        unit = self.spec.length.unit
+        if unit in {"chars", "bytes"}:
+            return target >= 24
+        return True
 
     def _trim(
         self,
+        context: GenerationContext,
         blocks: list[BlockNode],
         planner: Planner,
         target: int,
         renderer: BaseRenderer,
+        protected_prefix: int,
     ) -> list[BlockNode]:
         """Drop surplus blocks before fitting, never below a min_count rule."""
         minimums = {
@@ -198,21 +232,20 @@ class Generator:
         for family in families:
             if family in counts:
                 counts[family] += 1
-        size = sum(self._block_measure(block, renderer) for block in blocks)
         index = len(blocks) - 1
-        floor = int(target * 0.75)
-        while size > target and index >= 0 and size - floor > 0:
+        while index >= protected_prefix:
+            size = self._document_measure(self._assemble(context, blocks), renderer)
+            if size <= target:
+                break
             family = families[index]
             minimum = minimums.get(family, 0)
-            measure = self._block_measure(blocks[index], renderer)
-            if measure == 0 or (family in counts and counts[family] <= minimum):
+            if family in counts and counts[family] <= minimum:
                 index -= 1
                 continue
-            size -= measure
-            if family in counts:
-                counts[family] -= 1
             del blocks[index]
             del families[index]
+            if family in counts:
+                counts[family] -= 1
             index = min(index - 1, len(blocks) - 1)
         return blocks
 

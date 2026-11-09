@@ -65,6 +65,13 @@ def test_zero_length_is_empty() -> None:
     assert dummy_md.generate(length=0) == ""
 
 
+def test_small_documents_omit_frontmatter() -> None:
+    text = dummy_md.generate(length=60, dialect="extended", seed=1)
+    assert not text.startswith("---\n")
+    assert not text.startswith("{\n")
+    assert abs(chars_of(text) - 60) <= 3
+
+
 def test_chunks_concatenate_to_generate() -> None:
     cases: tuple[tuple[Unit, int], ...] = (
         ("chars", 5000),
@@ -163,6 +170,39 @@ def test_presets_are_selectable() -> None:
     text = dummy_md.generate(length=1500, preset="readme", seed=3)
     assert text.startswith("# ")
     assert dummy_md.validate(text).ok
+
+
+def test_every_preset_generates_valid_small_documents() -> None:
+    for name in dummy_md.available_presets():
+        for seed in (1, 7):
+            text = dummy_md.generate(length=1200, preset=name, seed=seed)
+            assert text, f"{name} produced nothing"
+            assert dummy_md.validate(text).ok, f"{name} invalid"
+
+
+def test_advanced_spec_from_readme() -> None:
+    from dummy_md.core.nodes import Heading, Table
+
+    spec = DocumentSpec(
+        dialect="gfm",
+        seed=42,
+        length=LengthSpec(value=8000, unit="chars", mode="approximate", tolerance=0.03),
+        include=["heading.*", "paragraph.*", "table.*", "code.*", "list.*"],
+        elements={
+            "heading": ElementRule(min_count=3, max_count=10, weight=3),
+            "paragraph": ElementRule(weight=10),
+            "table": ElementRule(min_count=2, weight=4),
+        },
+        max_nesting_depth=3,
+    )
+    generator = Generator(spec)
+    text = generator.generate()
+    document = generator.to_ast()
+    headings = [block for block in document.children if isinstance(block, Heading)]
+    tables = [block for block in document.children if isinstance(block, Table)]
+    assert 3 <= len(headings) <= 10
+    assert len(tables) >= 2
+    assert abs(chars_of(text) - 8000) <= 240
 
 
 def test_unknown_preset_errors() -> None:

@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING, Literal
 from dummy_md.core.nodes import (
     BlockNode,
     Document,
+    Heading,
     LineBreak,
     Paragraph,
     Text,
@@ -211,17 +212,22 @@ def _drop_block(document: Document, floor_blocks: int) -> Document:
     return replace(document, children=document.children[:-1])
 
 
-def _append_suffix(paragraph: Paragraph, suffix: str) -> Paragraph:
-    children = list(paragraph.children)
+_ELASTIC_TYPES = (Paragraph, Heading)
+
+
+def _append_suffix(block: BlockNode, suffix: str) -> BlockNode:
+    if not isinstance(block, _ELASTIC_TYPES):
+        raise TypeError(f"{type(block).__name__} is not elastic")
+    children = list(block.children)
     if children and isinstance(children[-1], Text):
         children[-1] = Text(children[-1].content + suffix)
     else:
         children.append(Text(suffix.lstrip() or suffix))
-    return Paragraph(children=tuple(children))
+    return replace(block, children=tuple(children))
 
 
 def _grow_chars(document: Document, context: GenerationContext, delta: int) -> Document:
-    if not document.children or not isinstance(document.children[-1], Paragraph):
+    if not document.children or not isinstance(document.children[-1], _ELASTIC_TYPES):
         return _append_block(document, context)
     paragraph = document.children[-1]
     if delta > 40:
@@ -240,7 +246,7 @@ def _shrink_chars(document: Document, floor_blocks: int) -> Document:
     if not blocks:
         return document
     last = blocks[-1]
-    if not isinstance(last, Paragraph) or not last.children:
+    if not isinstance(last, _ELASTIC_TYPES) or not last.children:
         return _drop_block(document, floor_blocks)
     children = list(last.children)
     for index in range(len(children) - 1, -1, -1):
@@ -259,7 +265,7 @@ def _shrink_chars(document: Document, floor_blocks: int) -> Document:
     else:
         return _drop_block(document, floor_blocks)
     if children:
-        blocks[-1] = Paragraph(children=tuple(children))
+        blocks[-1] = replace(last, children=tuple(children))
     elif len(blocks) > floor_blocks:
         blocks.pop()
     else:
@@ -268,7 +274,7 @@ def _shrink_chars(document: Document, floor_blocks: int) -> Document:
 
 
 def _grow_words(document: Document, context: GenerationContext) -> Document:
-    if not document.children or not isinstance(document.children[-1], Paragraph):
+    if not document.children or not isinstance(document.children[-1], _ELASTIC_TYPES):
         return _append_block(document, context)
     paragraph = document.children[-1]
     return _replace_last(document, _append_suffix(paragraph, " " + context.text.word()))
@@ -279,7 +285,7 @@ def _shrink_words(document: Document, floor_blocks: int) -> Document:
     if not blocks:
         return document
     last = blocks[-1]
-    if not isinstance(last, Paragraph) or not last.children:
+    if not isinstance(last, _ELASTIC_TYPES) or not last.children:
         return _drop_block(document, floor_blocks)
     children = list(last.children)
     for index in range(len(children) - 1, -1, -1):
@@ -296,7 +302,7 @@ def _shrink_words(document: Document, floor_blocks: int) -> Document:
     else:
         return _drop_block(document, floor_blocks)
     if children:
-        blocks[-1] = Paragraph(children=tuple(children))
+        blocks[-1] = replace(last, children=tuple(children))
     elif len(blocks) > floor_blocks:
         blocks.pop()
     else:

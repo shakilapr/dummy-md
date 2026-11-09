@@ -7,6 +7,7 @@ from dataclasses import dataclass, field, replace
 from types import MappingProxyType
 
 from dummy_md.config import DocumentSpec, ElementRule
+from dummy_md.elements import TableOptions
 from dummy_md.exceptions import ConfigurationError
 
 
@@ -76,9 +77,21 @@ PRESETS: dict[str, Preset] = {
         name="tables",
         description="Table-heavy fixtures with numeric cells",
         include=("heading.*", "paragraph.*", "table.*"),
+        exclude=("table.rows.many", "table.columns.many"),
         elements=MappingProxyType(
             {
-                "table": ElementRule(min_count=3, weight=10),
+                "table": ElementRule(
+                    min_count=1,
+                    weight=10,
+                    options=TableOptions(
+                        min_rows=2,
+                        max_rows=4,
+                        min_columns=2,
+                        max_columns=3,
+                        min_cell_words=1,
+                        max_cell_words=2,
+                    ),
+                ),
                 "paragraph": ElementRule(weight=4),
             }
         ),

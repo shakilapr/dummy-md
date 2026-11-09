@@ -85,7 +85,7 @@ class GenerationContext:
     max_depth: int = 3
     headings: HeadingTracker = field(default_factory=HeadingTracker)
     refs: ReferenceRegistry = field(default_factory=ReferenceRegistry)
-    block_hint: int = 320
+    block_hint: int = 480
 
     def supports(self, feature_id: str) -> bool:
         return feature_id in self.active_features

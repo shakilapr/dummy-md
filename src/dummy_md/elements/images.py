@@ -98,6 +98,7 @@ class ImageGenerator:
         label = ""
         if (
             "image.reference" in features
+            and context.block_hint >= 400
             and context.rng.random() < options.reference_ratio
         ):
             label = context.refs.link_label("img")
