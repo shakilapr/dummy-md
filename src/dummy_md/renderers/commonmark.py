@@ -8,6 +8,7 @@ does not define. Constructs from other dialects are implemented but guarded by
 from __future__ import annotations
 
 from dummy_md.core.nodes import (
+    AbbreviationDefinition,
     Attributes,
     Autolink,
     BlockNode,
@@ -16,8 +17,13 @@ from dummy_md.core.nodes import (
     CharacterReference,
     CodeBlock,
     CodeSpan,
+    Critic,
+    CrossRef,
+    DefinitionList,
+    EmojiShortcode,
     Emphasis,
     Escape,
+    FencedDiv,
     Figure,
     FootnoteReference,
     FrontMatter,
@@ -26,18 +32,23 @@ from dummy_md.core.nodes import (
     Image,
     InlineFootnote,
     InlineNode,
+    LineBlock,
     LineBreak,
     Link,
     ListBlock,
     ListItem,
     Math,
     MathBlock,
+    MathMacros,
     Paragraph,
     RawHTML,
+    Span,
     Strikethrough,
+    StyledSpan,
     Table,
     Text,
     ThematicBreak,
+    WikiLink,
 )
 from dummy_md.exceptions import DialectError, RenderError
 from dummy_md.renderers.base import (
@@ -48,6 +59,51 @@ from dummy_md.renderers.base import (
     format_destination,
     longest_run,
 )
+
+_STYLED_SPANS: dict[str, tuple[str, str, str]] = {
+    "superscript": ("inline.superscript", "^", "^"),
+    "subscript": ("inline.subscript", "~", "~"),
+    "underline": ("inline.underline", "++", "++"),
+    "highlight": ("inline.highlight", "==", "=="),
+    "insert": ("inline.insert", "^^", "^^"),
+}
+
+
+def _alpha_number(value: int) -> str:
+    if value < 1:
+        return "a"
+    letters: list[str] = []
+    while value > 0:
+        value, remainder = divmod(value - 1, 26)
+        letters.append(chr(ord("a") + remainder))
+    return "".join(reversed(letters))
+
+
+def _roman_number(value: int) -> str:
+    if value < 1:
+        return "i"
+    table = (
+        (1000, "m"),
+        (900, "cm"),
+        (500, "d"),
+        (400, "cd"),
+        (100, "c"),
+        (90, "xc"),
+        (50, "l"),
+        (40, "xl"),
+        (10, "x"),
+        (9, "ix"),
+        (5, "v"),
+        (4, "iv"),
+        (1, "i"),
+    )
+    out: list[str] = []
+    remaining = value
+    for amount, numeral in table:
+        while remaining >= amount:
+            out.append(numeral)
+            remaining -= amount
+    return "".join(out)
 
 
 class CommonMarkRenderer(BaseRenderer):
@@ -82,6 +138,17 @@ class CommonMarkRenderer(BaseRenderer):
             return self._math_block(node)
         if isinstance(node, Figure):
             return self._figure(node)
+        if isinstance(node, LineBlock):
+            return self._line_block(node)
+        if isinstance(node, FencedDiv):
+            return self._fenced_div(node)
+        if isinstance(node, DefinitionList):
+            return self._definition_list(node)
+        if isinstance(node, AbbreviationDefinition):
+            self.require("inline.abbreviation.definition", "abbreviation definitions")
+            return f"*[{node.label}]: {node.title}"
+        if isinstance(node, MathMacros):
+            return self._math_macros(node)
         raise RenderError(f"cannot render block {type(node).__name__}")
 
     # -- inlines ----------------------------------------------------------
@@ -124,6 +191,20 @@ class CommonMarkRenderer(BaseRenderer):
         if isinstance(node, InlineFootnote):
             self.require("footnote.inline", "inline footnotes")
             return "^[" + self._inline_sequence(node.children, mode) + "]"
+        if isinstance(node, StyledSpan):
+            return self._styled_span(node, mode)
+        if isinstance(node, Critic):
+            return self._critic(node, mode)
+        if isinstance(node, EmojiShortcode):
+            self.require("inline.emoji.shortcode", "emoji shortcodes")
+            return f":{node.name}:"
+        if isinstance(node, WikiLink):
+            return self._wiki_link(node)
+        if isinstance(node, Span):
+            return self._span(node, mode)
+        if isinstance(node, CrossRef):
+            self.require("math.crossref", "cross-references")
+            return "[@" + node.target + "]"
         if isinstance(node, LineBreak):
             raise RenderError("line breaks are rendered by paragraphs")
         raise RenderError(f"cannot render inline {type(node).__name__}")
@@ -207,8 +288,18 @@ class CommonMarkRenderer(BaseRenderer):
         return separator.join(rendered_items)
 
     def _marker(self, node: ListBlock, index: int) -> str:
+        number = node.start + index
+        if node.style == "example":
+            self.require("list.example_numbered", "example lists")
+            return "(@) "
+        if node.style == "alpha":
+            self.require("list.ordered.alpha", "alphabetical lists")
+            return f"{_alpha_number(number)}{node.delimiter} "
+        if node.style == "roman":
+            self.require("list.ordered.roman", "Roman-numeral lists")
+            return f"{_roman_number(number)}{node.delimiter} "
         if node.ordered:
-            return f"{node.start + index}{node.delimiter} "
+            return f"{number}{node.delimiter} "
         return f"{node.delimiter} "
 
     def _list_item(self, item: ListItem, *, tight: bool) -> str:
@@ -292,11 +383,14 @@ class CommonMarkRenderer(BaseRenderer):
 
     def _math_block(self, node: MathBlock) -> str:
         expression = node.expression.strip("\n")
+        labelled = (
+            expression + "\n\\label{" + node.label + "}" if node.label else expression
+        )
         if node.environment:
             self.require(f"math.latex.{node.environment}", "LaTeX environments")
             begin = f"\\begin{{{node.environment}}}"
             end = f"\\end{{{node.environment}}}"
-            return f"{begin}\n{expression}\n{end}"
+            return f"{begin}\n{labelled}\n{end}"
         feature = (
             "math.display.bracket"
             if node.delimiter == "bracket"
@@ -304,14 +398,51 @@ class CommonMarkRenderer(BaseRenderer):
         )
         self.require(feature, "display math")
         if node.delimiter == "bracket":
-            return f"\\[\n{expression}\n\\]"
-        return f"$$\n{expression}\n$$"
+            return f"\\[\n{labelled}\n\\]"
+        return f"$$\n{labelled}\n$$"
 
     def _figure(self, node: Figure) -> str:
-        self.require("image.figure.caption", "figure captions")
+        if node.caption:
+            self.require("image.figure.caption", "figure captions")
+        if node.label:
+            self.require("image.figure.label", "figure labels")
         image = self.render_block(Paragraph(children=(node.image,)))
+        if node.label:
+            image = f"{image}{{{'#' + node.label}}}"
         caption = self.render_block(Paragraph(children=(Text(node.caption),)))
-        return f"{image}\n\n{caption}"
+        return f"{image}\n\n{caption}" if node.caption else image
+
+    def _line_block(self, node: LineBlock) -> str:
+        self.require("paragraph.line_block", "line blocks")
+        lines = [
+            "| " + self._inline_sequence(line, "text") if line else "|"
+            for line in node.lines
+        ]
+        return "\n".join(lines)
+
+    def _fenced_div(self, node: FencedDiv) -> str:
+        self.require("paragraph.fenced_div", "fenced divs")
+        header = ":::" + (f" {node.info}" if node.info else "")
+        if node.attributes and not node.attributes.is_empty():
+            header += " " + self._attribute_string(node.attributes)
+        body = self.render_blocks(node.children)
+        return f"{header}\n{body}\n:::" if body else f"{header}\n:::"
+
+    def _definition_list(self, node: DefinitionList) -> str:
+        self.require("list.definition", "definition lists")
+        blocks: list[str] = []
+        for item in node.items:
+            blocks.append(self._inline_sequence(item.term, "text"))
+            for definition in item.definitions:
+                body = self.render_blocks(definition)
+                blocks.append(": " + body.replace("\n", "\n  "))
+        return "\n\n".join(blocks)
+
+    def _math_macros(self, node: MathMacros) -> str:
+        self.require("math.macros", "LaTeX macros")
+        return "\n".join(
+            f"\\newcommand{{\\{name}}}{{{body}}}" for name, body in node.definitions
+        )
 
     # -- inline helpers ---------------------------------------------------
     def _code_span(self, node: CodeSpan) -> str:
@@ -332,7 +463,11 @@ class CommonMarkRenderer(BaseRenderer):
                 title=node.title,
                 title_delimiter=node.title_delimiter,
             )
-            return f"[{text}]({target})"
+            rendered = f"[{text}]({target})"
+            if node.attributes and not node.attributes.is_empty():
+                self.require("link.attributes", "link attributes")
+                rendered += self._attribute_string(node.attributes)
+            return rendered
         label = escape_text(node.label, "link_label")
         if node.kind == "full":
             return f"[{text}][{label}]"
@@ -374,6 +509,64 @@ class CommonMarkRenderer(BaseRenderer):
         if node.delimiter == "bracket":
             return f"\\({node.expression}\\)"
         return f"${node.expression}$"
+
+    # -- extended inlines --------------------------------------------------
+    def _styled_span(self, node: StyledSpan, mode: InlineMode) -> str:
+        feature, opening, closing = _STYLED_SPANS[node.syntax]
+        self.require(feature, "inline styling")
+        inner = self._inline_sequence(node.children, mode)
+        return f"{opening}{inner}{closing}"
+
+    def _critic(self, node: Critic, mode: InlineMode) -> str:
+        self.require(f"inline.critic.{node.kind}", "CriticMarkup")
+        inner = self._inline_sequence(node.children, mode)
+        if node.kind == "replacement":
+            replacement = self._inline_sequence(node.replacement, mode)
+            return "{" + f"~~{inner}~>{replacement}~~" + "}"
+        if node.kind == "deletion":
+            return "{" + f"--{inner}--" + "}"
+        if node.kind == "insertion":
+            return "{" + f"++{inner}++" + "}"
+        if node.kind == "comment":
+            return "{" + f">>{inner}<<" + "}"
+        return "{" + f"=={inner}==" + "}"
+
+    def _wiki_link(self, node: WikiLink) -> str:
+        self.require("link.wiki.basic", "wiki links")
+        if node.alias:
+            self.require("link.wiki.alias", "wiki link aliases")
+        if node.heading:
+            self.require("link.wiki.heading", "wiki links to headings")
+        if node.block:
+            self.require("link.wiki.block", "wiki links to block ids")
+        target = node.target
+        if node.heading:
+            target += "#" + node.heading
+        if node.block:
+            target += "#^" + node.block
+        if node.alias:
+            return "[[" + target + "|" + node.alias + "]]"
+        return "[[" + target + "]]"
+
+    def _span(self, node: Span, mode: InlineMode) -> str:
+        classes = node.attributes.classes if node.attributes else ()
+        if "smallcaps" in classes:
+            self.require("inline.small_caps", "small caps")
+        inner = self._inline_sequence(node.children, mode)
+        return "[" + inner + "]" + self._attribute_string(node.attributes)
+
+    def _attribute_string(self, attributes: Attributes | None) -> str:
+        if attributes is None or attributes.is_empty():
+            return "{}"
+        parts: list[str] = []
+        if attributes.identifier:
+            parts.append("#" + attributes.identifier)
+        parts.extend("." + name for name in attributes.classes)
+        parts.extend(
+            key + '="' + escape_text(value, "text") + '"'
+            for key, value in attributes.pairs
+        )
+        return "{" + " ".join(parts) + "}"
 
     # -- attributes -------------------------------------------------------
     def _attributes(self, attributes: Attributes | None, scope: str = "heading") -> str:

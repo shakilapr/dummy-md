@@ -1,4 +1,8 @@
-"""GitHub Flavored Markdown serialization."""
+"""GitHub Flavored Markdown serialization.
+
+Pipe tables are GFM; ``simple`` and ``multiline`` tables are Pandoc table
+syntax, emitted only when the extended dialect enables those features.
+"""
 
 from __future__ import annotations
 
@@ -8,9 +12,13 @@ from dummy_md.renderers.commonmark import CommonMarkRenderer
 
 
 class GFMRenderer(CommonMarkRenderer):
-    """CommonMark plus pipe tables (task lists and strikethrough are guarded)."""
+    """CommonMark plus pipe tables and Pandoc simple/multiline tables."""
 
     def _table(self, node: Table) -> str:
+        if node.style == "simple":
+            return self._simple_table(node)
+        if node.style == "multiline":
+            return self._multiline_table(node)
         for cell in (*node.header, *(cell for row in node.rows for cell in row)):
             if cell.colspan != 1 or cell.rowspan != 1:
                 raise DialectError(
@@ -71,6 +79,41 @@ class GFMRenderer(CommonMarkRenderer):
             return f"{rendered}\n\n: {node.caption}"
         return rendered
 
+    # -- Pandoc table styles ----------------------------------------------
+    def _simple_table(self, node: Table) -> str:
+        self.require("table.simple", "simple tables")
+        header, rows = self._grid(node)
+        widths = _widths(header, rows)
+        lines = [
+            _simple_row(header, widths),
+            "  ".join("-" * width for width in widths),
+        ]
+        lines.extend(_simple_row(row, widths) for row in rows)
+        rendered = "\n".join(lines)
+        if node.caption:
+            self.require("table.caption", "table captions")
+            return f"{rendered}\n\n: {node.caption}"
+        return rendered
+
+    def _multiline_table(self, node: Table) -> str:
+        self.require("table.multiline", "multiline tables")
+        header, rows = self._grid(node)
+        widths = _widths(header, rows)
+        border = "  ".join("-" * width for width in widths)
+        lines = [border, _simple_row(header, widths), border]
+        lines.extend(_simple_row(row, widths) for row in rows)
+        lines.append(border)
+        rendered = "\n".join(lines)
+        if node.caption:
+            self.require("table.caption", "table captions")
+            return f"{rendered}\n\n: {node.caption}"
+        return rendered
+
+    def _grid(self, node: Table) -> tuple[list[str], list[list[str]]]:
+        header = [self._cell(cell) for cell in node.header]
+        rows = [[self._cell(cell) for cell in row] for row in node.rows]
+        return header, rows
+
     def _cell(self, cell: TableCell) -> str:
         return "".join(
             self.render_inline(child, "table_cell") for child in cell.children
@@ -92,14 +135,26 @@ class GFMRenderer(CommonMarkRenderer):
 
     @staticmethod
     def _alignment_cell(alignment: Alignment, width: int) -> str:
-        width = max(3, width)
         if alignment == "left":
             return ":" + "-" * (width - 1)
         if alignment == "right":
             return "-" * (width - 1) + ":"
         if alignment == "center":
-            return ":" + "-" * max(1, width - 2) + ":"
+            return ":" + "-" * (width - 2) + ":"
         return "-" * width
 
 
-__all__ = ["GFMRenderer"]
+def _widths(header: list[str], rows: list[list[str]]) -> list[int]:
+    widths = [max(1, len(text)) for text in header] or [1]
+    for row in rows:
+        for index, text in enumerate(row[: len(widths)]):
+            widths[index] = max(widths[index], len(text))
+    return widths
+
+
+def _simple_row(cells: list[str], widths: list[int]) -> str:
+    padded = [
+        text.ljust(widths[index]) if index < len(widths) else text
+        for index, text in enumerate(cells)
+    ]
+    return "  ".join(padded).rstrip()
