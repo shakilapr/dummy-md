@@ -115,6 +115,15 @@ def get(name: str) -> Preset:
     return preset
 
 
+def register_preset(preset: Preset, *, replace: bool = False) -> None:
+    """Make a custom preset available by name to ``generate(preset=...)``."""
+    if not preset.name:
+        raise ConfigurationError("preset name must not be empty")
+    if preset.name in PRESETS and not replace:
+        raise ConfigurationError(f"preset {preset.name!r} is already registered")
+    PRESETS[preset.name] = preset
+
+
 def describe() -> Mapping[str, str]:
     return MappingProxyType(
         {preset.name: preset.description for preset in PRESETS.values()}
