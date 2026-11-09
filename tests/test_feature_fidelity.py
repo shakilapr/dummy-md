@@ -464,7 +464,12 @@ def _paragraph_context(feature: str) -> GenerationContext:
 def test_inline_variants_reach_output(feature: str, marker: str) -> None:
     context = _paragraph_context(feature)
     block = REGISTRY.generator("paragraph").generate(context)
-    assert marker in render_block(block, context)
+    text = render_block(block, context)
+    assert marker in text
+    if feature == "inline.superscript":
+        assert re.search(r"\^[^\s^]+\^", text)
+    if feature == "inline.subscript":
+        assert re.search(r"~[^\s~]+~", text)
 
 
 @pytest.mark.parametrize(
@@ -514,7 +519,13 @@ def test_block_containers(feature: str, marker: str) -> None:
         options={"paragraph": ElementRule(options=ParagraphOptions(block_ratio=1.0))},
     )
     block = REGISTRY.generator("paragraph").generate(context)
-    assert marker in render_block(block, context)
+    text = render_block(block, context)
+    if feature == "paragraph.line_block":
+        assert text.splitlines() and all(
+            line.startswith("| ") for line in text.splitlines()
+        )
+    else:
+        assert text.startswith("::: {") and text.rstrip().endswith(":::")
 
 
 def test_theorem_block() -> None:
@@ -536,7 +547,9 @@ def test_definition_list() -> None:
     )
     block = REGISTRY.generator("list").generate(context)
     text = render_block(block, context)
-    assert text.startswith(": ") or "\n\n: " in text
+    lines = text.splitlines()
+    assert lines and not lines[0].startswith(":")
+    assert any(line.startswith(": ") for line in lines)
 
 
 @pytest.mark.parametrize(
@@ -572,6 +585,14 @@ def test_wiki_links_and_attributes(features: tuple[str, ...], marker: str) -> No
         if marker in rendered:
             break
     assert marker in rendered
+    if all(feature.startswith("link.wiki") for feature in features):
+        assert "http" not in rendered
+        if "link.wiki.alias" in features:
+            assert re.search(r"\[\[[^\]|]+\|[^\]]+\]\]", rendered)
+        if "link.wiki.heading" in features:
+            assert re.search(r"\[\[[^\]#]+\#[^\]]+\]\]", rendered)
+        if "link.wiki.block" in features:
+            assert re.search(r"\[\[[^\]]+#\^[^\]]+\]\]", rendered)
 
 
 @pytest.mark.parametrize(
@@ -603,6 +624,47 @@ def test_pandoc_table_styles(feature: str, expected_style: str) -> None:
         assert "|" not in text
 
 
+def test_extended_generation_is_deterministic() -> None:
+    from dummy_md import DocumentSpec, Generator, LengthSpec
+
+    spec = DocumentSpec(
+        dialect="extended",
+        seed=13,
+        length=LengthSpec(4000),
+        include=[
+            "paragraph.*",
+            "list.*",
+            "table.*",
+            "link.*",
+            "math.*",
+            "diagram.*",
+            "inline.*",
+        ],
+    )
+    assert Generator(spec).generate() == Generator(spec).generate()
+
+
+def test_empty_simple_table_falls_back_to_pipe() -> None:
+    context = build_context(
+        dialect="extended",
+        include=("table.simple", "table.header_only"),
+        options={
+            "table": ElementRule(
+                options=TableOptions(
+                    style_ratio=1.0,
+                    header_only_ratio=1.0,
+                    min_columns=2,
+                    max_columns=2,
+                )
+            )
+        },
+    )
+    block = REGISTRY.generator("table").generate(context)
+    assert isinstance(block, Table)
+    text = render_block(block, context)
+    assert "|" in text, "Pandoc simple tables need a body; fall back to pipe syntax"
+
+
 def test_math_label_macros_and_crossref() -> None:
     label_context = build_context(
         dialect="extended",
@@ -632,7 +694,12 @@ def test_figure_label() -> None:
         options={"image": ElementRule(options={"figure_ratio": 1.0})},
     )
     block = REGISTRY.generator("image").generate(context)
-    assert "{#fig:" in render_block(block, context)
+    text = render_block(block, context)
+    assert text.count("![") == 1
+    assert "{#fig:" in text
+    assert "\n\n" not in text.strip(), (
+        "caption must live in the image alt, not a second paragraph"
+    )
 
 
 @pytest.mark.parametrize(
