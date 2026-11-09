@@ -406,7 +406,7 @@ def test_math_blocks_and_inline_math() -> None:
 def test_frontmatter_formats() -> None:
     yaml = FrontMatter(format="yaml", content="title: Demo")
     toml = FrontMatter(format="toml", content='title = "Demo"')
-    raw_json = FrontMatter(format="json", content='"title": "Demo"')
+    raw_json = FrontMatter(format="json", content='{\n"title": "Demo"\n}')
     doc = Document(children=(yaml, toml, raw_json, Paragraph(children=(Text("body"),))))
     rendered = extended.render(doc)
     assert "---\ntitle: Demo\n---" in rendered
