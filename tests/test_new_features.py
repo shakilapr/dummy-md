@@ -107,6 +107,13 @@ def test_citation_modes_render(feature: str) -> None:
     assert isinstance(block, type(block))
 
 
+def test_narrative_citation_does_not_double_its_prefix() -> None:
+    for seed in range(20):
+        text, _block = _render("citation.narrative", seed=seed)
+        assert "According to See" not in text
+        assert "See See" not in text
+
+
 @pytest.mark.parametrize("feature", sorted(_DIRECTIVE))
 def test_documentation_directives_render(feature: str) -> None:
     text, block = _render(feature)
@@ -126,6 +133,12 @@ def test_documentation_directives_render(feature: str) -> None:
 def test_myst_roles_render(feature: str) -> None:
     text, _block = _render(feature)
     assert "{" in text and "}`" in text
+
+
+def test_mkdocs_tooltip_uses_an_icon_name() -> None:
+    text, _block = _render("directive.mkdocs.tooltip")
+    assert ':material-tooltip:{ title="' in text
+    assert ":{tooltip" not in text
 
 
 @pytest.mark.parametrize("feature", ["directive.mkdocs.keys", "directive.mkdocs.icons"])
@@ -170,12 +183,45 @@ def test_mdx_payloads_render(feature: str) -> None:
         ("platform.gitlab.commit_ref", "`"),
         ("platform.gitlab.placeholder", "%{"),
         ("platform.gitlab.color_chip", "`#"),
-        ("platform.gitlab.include", "::include{file="),
+        ("platform.gitlab.include", "<!-- include: "),
     ],
 )
 def test_platform_constructs_render(feature: str, marker: str) -> None:
     text, _block = _render(feature)
     assert marker in text
+
+
+def test_platform_include_is_a_valid_html_comment() -> None:
+    text, _block = _render("platform.gitlab.include")
+    assert text.startswith("<!-- include: ")
+    assert text.rstrip().endswith(" -->")
+
+
+def test_myst_include_has_no_body() -> None:
+    text, _block = _render("directive.myst.include")
+    assert text.startswith(":::{include} ")
+    assert text.rstrip().endswith(":::")
+    assert text.rstrip().count("\n") == 1
+
+
+def test_decimal_character_reference_is_well_formed() -> None:
+    text, _block = _render("stress.text.entities")
+    assert "&#169;" in text
+    assert "&169;" not in text
+
+
+def test_frontmatter_merge_deduplicates_keys() -> None:
+    from dummy_md.core.engine import Generator
+
+    merged = Generator._merge_yaml(
+        [
+            "title: First\ntags:\n  - alpha",
+            "title: Second\ntags: [beta]\nstatus: draft",
+        ]
+    )
+    assert merged.count("title:") == 1
+    assert merged.count("tags:") == 1
+    assert "status: draft" in merged
 
 
 @pytest.mark.parametrize(

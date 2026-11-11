@@ -144,6 +144,36 @@ def test_commonmark_output_has_no_tables() -> None:
     assert dummy_md.validate(text, "commonmark").ok
 
 
+def test_generated_documents_keep_structural_variety() -> None:
+    from collections import Counter
+
+    from dummy_md.core.nodes import FrontMatter
+
+    cases = (("commonmark", 4000), ("gfm", 5000), ("extended", 8000))
+    for dialect, length in cases:
+        document = Generator(
+            DocumentSpec(
+                dialect=dialect,
+                seed=13,
+                length=LengthSpec(length),
+            )
+        ).to_ast()
+        kinds = Counter(type(block).__name__ for block in document.children)
+        assert len(kinds) >= 5, (dialect, kinds)
+        assert kinds["Paragraph"] >= 1
+        assert kinds["Heading"] >= 1
+        assert kinds["ListBlock"] >= 1
+        if dialect == "extended":
+            metadata = [b for b in document.children if isinstance(b, FrontMatter)]
+            assert len(metadata) == 1
+            keys = [
+                line.split(":", 1)[0]
+                for line in metadata[0].content.splitlines()
+                if line and not line[0].isspace() and ":" in line
+            ]
+            assert len(keys) == len(set(keys)), keys
+
+
 def test_dialect_gating_errors() -> None:
     with pytest.raises(DialectError):
         dummy_md.generate(length=100, dialect="commonmark", include=["table.pipe"])

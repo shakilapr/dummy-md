@@ -341,6 +341,17 @@ def test_table_cell_pipe_escaping() -> None:
     assert "a\\|b" in rendered
 
 
+def test_table_cell_link_label_pipe_is_escaped() -> None:
+    link = Link(children=(Text("a|b"),), destination="https://example.com")
+    table = Table(
+        header=(TableCell(children=(link,)),),
+        rows=(),
+        alignments=("left",),
+    )
+    rendered = gfm.render(Document(children=(table,)))
+    assert "[a\\|b](https://example.com)" in rendered
+
+
 def test_table_rejected_by_commonmark() -> None:
     table = Table(header=(TableCell(children=(Text("A"),)),), alignments=("left",))
     with pytest.raises(DialectError, match="pipe tables"):
