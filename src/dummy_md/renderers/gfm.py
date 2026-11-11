@@ -293,9 +293,10 @@ class GFMRenderer(CommonMarkRenderer):
         return header, rows
 
     def _cell(self, cell: TableCell) -> str:
-        return "".join(
+        rendered = "".join(
             self.render_inline(child, "table_cell") for child in cell.children
         )
+        return _escape_table_pipes(rendered)
 
     @staticmethod
     def _pad(
@@ -320,6 +321,23 @@ class GFMRenderer(CommonMarkRenderer):
         if alignment == "center":
             return ":" + "-" * (width - 2) + ":"
         return "-" * width
+
+
+def _escape_table_pipes(text: str) -> str:
+    """Escape unescaped pipes that would otherwise split a table cell."""
+    result: list[str] = []
+    for index, character in enumerate(text):
+        if character == "|":
+            backslashes = 0
+            cursor = index - 1
+            while cursor >= 0 and text[cursor] == "\\":
+                backslashes += 1
+                cursor -= 1
+            if backslashes % 2 == 0:
+                result.append("\\|")
+                continue
+        result.append(character)
+    return "".join(result)
 
 
 def _pandoc_table_supported(node: Table) -> bool:

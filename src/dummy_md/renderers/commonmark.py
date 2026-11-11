@@ -181,6 +181,10 @@ class CommonMarkRenderer(BaseRenderer):
         if isinstance(node, Escape):
             return "\\" + node.character
         if isinstance(node, CharacterReference):
+            if node.kind == "decimal":
+                return f"&#{node.value};"
+            if node.kind == "hex":
+                return f"&#x{node.value};"
             return f"&{node.value};"
         if isinstance(node, Emphasis):
             delimiter = node.delimiter * node.level
@@ -718,7 +722,10 @@ class CommonMarkRenderer(BaseRenderer):
             return "++" + node.argument + "++"
         if node.name == "icons":
             return ":" + node.argument + ":"
-        return ":{" + node.argument + '}{ title="' + node.name + '" }'
+        if node.name == "tooltip":
+            title = node.argument.replace('"', '\\"')
+            return ':material-tooltip:{ title="' + title + '" }'
+        return ":" + node.argument + ":"
 
     def _mdx_inline(self, node: MdxInline) -> str:
         self.require(node.feature, "MDX expressions")
@@ -758,7 +765,7 @@ class CommonMarkRenderer(BaseRenderer):
         if node.kind == "commit":
             return "`" + node.value + "`"
         if node.kind == "include":
-            return "::include{file=" + node.value + "}"
+            return "<!-- include: " + node.value + " -->"
         if node.kind == "color":
             return "`#" + node.value + "`"
         return "%{" + node.value + "}"
