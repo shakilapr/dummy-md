@@ -7,7 +7,7 @@ built and verified. Feature ids refer to the machine-readable catalog in
 Legend: `[x]` implemented and tested · `[ ]` planned · `[-]` deliberately out of scope for now.
 
 **Status:** 423 catalogued targets, 422 implemented (129 CommonMark, 163 GFM, 373 extended,
-422 stress). 538 tests, `mypy --strict` clean, `ruff` clean.
+422 stress). 546 tests, `mypy --strict` clean, `ruff` clean.
 
 ---
 
@@ -145,7 +145,8 @@ Added the missing core and Pandoc-style syntax that the existing AST could expre
 
 90 fidelity tests assert each new construct reaches rendered output; 19 further tests
 re-parse the output with Pandoc and assert the intended AST node (skipped when Pandoc is
-not installed).
+not installed). The generated showcase tree is additionally audited for duplicate YAML keys,
+malformed character references, stray pseudo-syntax, unclosed fences and empty directives.
 
 ## Next up
 

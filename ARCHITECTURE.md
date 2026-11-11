@@ -214,7 +214,8 @@ engine *can* emit a feature, and the fidelity tests prove that path exists.
 - **Citations.** `Citation` carries keys, bracketed/narrative mode, prefix, suffix, locator and
   suppress-author flag. The renderer emits Pandoc citation syntax; bibliography entries are
   `FrontMatter` blocks, which the engine hoists to the document start and merges with the
-  front-matter generator's metadata.
+  front-matter generator's metadata. YAML merges are key-aware: the first value for a key wins
+  and duplicate keys from platform metadata are dropped, so generated front matter stays valid.
 - **Directives.** `DirectiveBlock` and `DirectiveInline` carry a style (`myst`, `mkdocs`,
   `quarto`), name, argument, title and options. The renderer owns the colon fence, `!!!`/`???`
   admonition header, `=== "Tab"` header or Quarto fenced-div spelling.
@@ -226,7 +227,8 @@ engine *can* emit a feature, and the fidelity tests prove that path exists.
   raw fenced strings.
 - **Grid tables.** `Table(style="grid")` is rendered by a fixed-width layout pass. Row and column
   spans are laid out by occupancy; Pandoc's reader accepts the table but discards span metadata,
-  which is recorded as a known limitation rather than hidden.
+  which is recorded as a known limitation rather than hidden. Cell rendering escapes unescaped
+  pipes after inline rendering, so link labels inside pipe/grid tables cannot split a row.
 - **Stress fixtures.** Paragraph variants emit escape nodes, character references, Unicode
   samples and explicit LF/CRLF line-break nodes. Raw-byte line endings never pass through the
   normal text escaper.
