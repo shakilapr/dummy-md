@@ -626,7 +626,9 @@ classDiagram
   `Document.link_definitions` and `Document.footnote_definitions` are the closure, produced by
   the engine after generation, and a test asserts 1:1 usage.
 - Heading levels follow `HeadingTracker`: no skipped levels relative to the previous heading
-  unless `HeadingOptions.allow_skips` is true.
+  unless `HeadingOptions.allow_skips` is true. Headings nested inside lists or blockquotes update
+  the same tracker through `GenerationContext.next_heading_level`, so a nested heading cannot
+  jump from an H1 straight to an H3.
 - Immutability: no generator mutates a node it did not create. Elastic resizing is performed by
   the budget layer through explicit `replace()` calls that produce new nodes.
 
