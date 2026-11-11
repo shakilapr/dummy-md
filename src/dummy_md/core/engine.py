@@ -218,6 +218,16 @@ class Generator:
             block = planner.next_block()
             if block is None:
                 break
+            candidate = [*blocks, block]
+            if (
+                len(blocks) > skeleton_count
+                and self._document_measure(self._assemble(context, candidate), renderer)
+                > target
+            ):
+                # A single structural block can be larger than the remaining
+                # budget. Keep the structure already built and let the elastic
+                # fitter fill the remainder instead of deleting the block.
+                break
             blocks.append(block)
         blocks = self._trim(context, blocks, planner, target, renderer, skeleton_count)
         return self._assemble(context, blocks)
@@ -230,10 +240,13 @@ class Generator:
         if metadata:
             formats = {block.format for block in metadata}
             if len(formats) == 1:
-                merged = FrontMatter(
-                    format=metadata[0].format,
-                    content="\n".join(block.content.strip("\n") for block in metadata),
+                contents = [block.content.strip("\n") for block in metadata]
+                content = (
+                    self._merge_yaml(contents)
+                    if metadata[0].format == "yaml"
+                    else "\n".join(contents)
                 )
+                merged = FrontMatter(format=metadata[0].format, content=content)
                 body.insert(0, merged)
             else:
                 body[:0] = metadata
@@ -242,6 +255,31 @@ class Generator:
             link_definitions=tuple(context.refs.links.values()),
             footnote_definitions=tuple(context.refs.footnotes.values()),
         )
+
+    @staticmethod
+    def _merge_yaml(contents: list[str]) -> str:
+        """Merge YAML front-matter blocks without emitting duplicate keys."""
+        merged: dict[str, list[str]] = {}
+        order: list[str] = []
+        for content in contents:
+            current: str | None = None
+            for line in content.splitlines():
+                if line and not line[0].isspace() and not line.startswith("-"):
+                    key, separator, _ = line.partition(":")
+                    if separator:
+                        current = key.strip()
+                        if current in merged:
+                            # Keep the first value and skip this duplicate
+                            # key together with its nested lines.
+                            current = None
+                            continue
+                        merged[current] = []
+                        order.append(current)
+                        merged[current].append(line)
+                        continue
+                if current is not None:
+                    merged[current].append(line)
+        return "\n".join(line for key in order for line in merged[key])
 
     def _document_measure(self, document: Document, renderer: BaseRenderer) -> int:
         if self.spec.length.unit == "blocks":
