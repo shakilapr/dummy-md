@@ -9,7 +9,10 @@
     "tolerance": 0.05
   },
   "include": [],
-  "exclude": [],
+  "exclude": [
+    "heading.levels.skipped",
+    "heading.titles.repeated"
+  ],
   "elements": {
     "table": {
       "min_count": 0,
@@ -29,6 +32,25 @@
         "style_ratio": 0.3,
         "min_cell_words": 1,
         "max_cell_words": 3
+      }
+    },
+    "heading": {
+      "min_count": 0,
+      "max_count": null,
+      "weight": 1.0,
+      "options": {
+        "levels": [
+          2,
+          3,
+          4
+        ],
+        "style": "random",
+        "closed": false,
+        "closed_ratio": 0.5,
+        "setext_ratio": 0.25,
+        "allow_skips": false,
+        "attribute_ratio": 0.2,
+        "repeat_ratio": 0.12
       }
     }
   },
