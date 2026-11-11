@@ -128,3 +128,9 @@ class GenerationContext:
     def nested(self) -> GenerationContext:
         """A view one nesting level deeper, sharing RNG, trackers, and budget."""
         return replace(self, depth=self.depth + 1)
+
+    def next_heading_level(self, desired: int) -> int:
+        """Clamp a nested heading to the document hierarchy and record it."""
+        level = self.headings.next_level(desired)
+        self.headings.record(level)
+        return level

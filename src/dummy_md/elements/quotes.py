@@ -114,7 +114,7 @@ class QuoteGenerator:
         if heading_ok and context.rng.random() < options.extra_block_ratio:
             children.append(
                 Heading(
-                    level=context.rng.randint(2, 4),
+                    level=context.next_heading_level(context.rng.randint(2, 4)),
                     children=(Text(context.text.heading_phrase(2)),),
                 )
             )

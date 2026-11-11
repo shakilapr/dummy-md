@@ -166,7 +166,7 @@ class ListGenerator:
         ):
             children.append(
                 Heading(
-                    level=context.rng.randint(2, 4),
+                    level=context.next_heading_level(context.rng.randint(2, 4)),
                     children=(self._phrase(context),),
                 )
             )
