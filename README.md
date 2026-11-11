@@ -342,6 +342,12 @@ dummy-md generate --spec examples/extended-showcase.json > /tmp/extended.md
 python scripts/generate_outputs.py
 ```
 
+The `extended` and `stress` showcases deliberately exercise Pandoc/MyST syntax — grid tables,
+line blocks, fenced divs, directives, citations and front matter. A GFM-only preview, such as the
+built-in VS Code Markdown preview or GitHub, will show those constructs as literal text because
+it does not implement them. Use `examples/gfm-showcase.md` for that kind of preview, or open the
+extended files in a Pandoc/Quarto/MyST-aware renderer.
+
 ## Development
 
 ```bash
