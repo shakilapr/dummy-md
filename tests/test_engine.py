@@ -174,6 +174,43 @@ def test_generated_documents_keep_structural_variety() -> None:
             assert len(keys) == len(set(keys)), keys
 
 
+def test_generated_headings_do_not_skip_levels() -> None:
+    from dataclasses import fields, is_dataclass
+
+    from dummy_md.core.nodes import Heading
+
+    def headings(node: object) -> list[int]:
+        if isinstance(node, Heading):
+            return [node.level]
+        if is_dataclass(node):
+            found: list[int] = []
+            for field in fields(node):
+                value = getattr(node, field.name)
+                if isinstance(value, (tuple, list)):
+                    for item in value:
+                        found.extend(headings(item))
+                else:
+                    found.extend(headings(value))
+            return found
+        return []
+
+    for seed in range(12):
+        document = Generator(
+            DocumentSpec(
+                dialect="extended",
+                seed=seed,
+                length=LengthSpec(6000),
+                exclude=["heading.levels.skipped"],
+            )
+        ).to_ast()
+        levels = headings(document)
+        assert levels, seed
+        assert all(
+            later <= earlier + 1
+            for earlier, later in zip(levels, levels[1:], strict=False)
+        ), (seed, levels)
+
+
 def test_dialect_gating_errors() -> None:
     with pytest.raises(DialectError):
         dummy_md.generate(length=100, dialect="commonmark", include=["table.pipe"])
