@@ -328,8 +328,8 @@ or hash order.
 
 ## Examples
 
-`examples/` holds four committed showcases — CommonMark, GFM, extended and stress — each paired
-with the exact JSON spec that produced it:
+`examples/` holds five committed showcases — CommonMark, GFM, extended, stress and a
+Zed-compatible preview document — each paired with the exact JSON spec that produced it:
 
 ```bash
 dummy-md generate --spec examples/extended-showcase.json > /tmp/extended.md
@@ -347,6 +347,22 @@ line blocks, fenced divs, directives, citations and front matter. A GFM-only pre
 built-in VS Code Markdown preview or GitHub, will show those constructs as literal text because
 it does not implement them. Use `examples/gfm-showcase.md` for that kind of preview, or open the
 extended files in a Pandoc/Quarto/MyST-aware renderer.
+
+### Zed live preview
+
+Zed's Markdown preview parses with pulldown-cmark and enables tables, footnotes, strikethrough,
+task lists, smart punctuation, heading attributes, plus-delimited metadata, old footnotes, GFM,
+superscript and subscript. It does not parse grid tables, line blocks, fenced divs, MyST
+directives, citations, definition lists, example lists, math or MDX.
+
+Use the preview preset for files that must render as-is in Zed:
+
+```bash
+dummy-md generate --preset preview --chars 4000 --seed 15 > preview.md
+```
+
+`examples/zed-preview-showcase.md` is the committed example. It stays within the CommonMark/GFM
+subset, uses pipe tables instead of grid tables, and avoids extension-only syntax.
 
 ## Development
 

@@ -7,7 +7,7 @@ built and verified. Feature ids refer to the machine-readable catalog in
 Legend: `[x]` implemented and tested · `[ ]` planned · `[-]` deliberately out of scope for now.
 
 **Status:** 423 catalogued targets, 422 implemented (129 CommonMark, 163 GFM, 373 extended,
-422 stress). 547 tests, `mypy --strict` clean, `ruff` clean.
+422 stress). 548 tests, `mypy --strict` clean, `ruff` clean.
 
 ---
 
