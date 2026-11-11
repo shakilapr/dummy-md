@@ -211,6 +211,13 @@ def test_generated_headings_do_not_skip_levels() -> None:
         ), (seed, levels)
 
 
+def test_preview_preset_stays_within_zed_markdown_subset() -> None:
+    text = dummy_md.generate(length=3000, seed=15, preset="preview")
+    assert dummy_md.validate(text, "gfm").ok
+    for marker in (":::", "+---", "[@", "$$"):
+        assert marker not in text
+
+
 def test_dialect_gating_errors() -> None:
     with pytest.raises(DialectError):
         dummy_md.generate(length=100, dialect="commonmark", include=["table.pipe"])

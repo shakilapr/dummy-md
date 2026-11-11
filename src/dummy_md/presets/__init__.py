@@ -107,6 +107,26 @@ PRESETS: dict[str, Preset] = {
         text_style="tokens",
         max_nesting_depth=5,
     ),
+    "preview": Preset(
+        name="preview",
+        description=(
+            "Zed/GFM live preview: pipe tables, task lists, strikethrough, "
+            "footnotes, HTML, and clean heading hierarchy"
+        ),
+        dialect="gfm",
+        exclude=(
+            "heading.levels.skipped",
+            "heading.titles.repeated",
+            "image.*",
+            "table.cell.image",
+            "html.img",
+            "html.picture",
+            "html.video",
+            "html.audio",
+            "html.iframe",
+        ),
+        max_nesting_depth=2,
+    ),
 }
 
 
