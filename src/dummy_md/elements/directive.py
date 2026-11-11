@@ -68,7 +68,11 @@ class DirectiveGenerator:
                 else ""
             ),
             options=self._options(context, feature, options),
-            children=(self._paragraphs.generate(context),),
+            children=(
+                ()
+                if feature == "directive.myst.include"
+                else (self._paragraphs.generate(context),)
+            ),
         )
 
     # -- helpers ----------------------------------------------------------

@@ -89,9 +89,9 @@ class ListGenerator:
         return DefinitionList(items=tuple(items))
 
     def _item_paragraph(self, context: GenerationContext) -> Paragraph:
-        sentences = context.rng.randint(1, 3)
+        sentences = context.rng.randint(1, 2)
         text = " ".join(
-            context.text.sentence(min_words=4, max_words=10) for _ in range(sentences)
+            context.text.sentence(min_words=4, max_words=8) for _ in range(sentences)
         )
         return Paragraph(children=(Text(text),))
 
@@ -101,7 +101,14 @@ class ListGenerator:
     ) -> ListBlock:
         ordered = self._ordered(context, options)
         items: list[ListItem] = []
-        ceiling = max(options.min_items, options.max_items - depth * 2)
+        # Keep one list block a modest fraction of the document target; an
+        # unbounded nested list otherwise swallows the whole budget and the
+        # fitter deletes it, leaving a document of bare paragraphs.
+        size_cap = max(options.min_items, context.block_hint // 1200)
+        ceiling = max(
+            options.min_items,
+            min(options.max_items, size_cap) - depth * 2,
+        )
         count = context.rng.randint(options.min_items, ceiling)
         for _ in range(count):
             items.append(self._item(context, options, depth=depth, ordered=ordered))
@@ -182,11 +189,12 @@ class ListGenerator:
             children.append(Blockquote(children=(self._item_paragraph(context),)))
 
         if (
-            depth + 1 < options.max_depth
+            depth < min(options.max_depth, 1)
             and context.depth + 1 < context.max_depth
             and context.can_nest
+            and context.block_hint >= 1200
             and self._nested_available(context)
-            and context.rng.random() < options.nested_ratio * (0.6**depth)
+            and context.rng.random() < options.nested_ratio * (0.2**depth)
         ):
             children.append(self._nested(context, options, depth=depth + 1))
 

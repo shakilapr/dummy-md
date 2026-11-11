@@ -190,22 +190,31 @@ class TableGenerator:
 
     # -- helpers ----------------------------------------------------------
     def _row_count(self, context: GenerationContext, options: TableOptions) -> int:
+        cap = max(options.min_rows, context.block_hint // 1200)
         if context.supports("table.rows.many"):
-            return context.rng.randint(options.max_rows, options.max_rows * 2)
+            return min(context.rng.randint(options.max_rows, options.max_rows * 2), cap)
         if (
             context.supports("table.header_only")
             and context.rng.random() < options.header_only_ratio
         ):
             return 0
-        return context.rng.randint(options.min_rows, options.max_rows)
+        return context.rng.randint(options.min_rows, min(options.max_rows, cap))
 
     def _column_count(self, context: GenerationContext, options: TableOptions) -> int:
+        cap = max(
+            options.min_columns,
+            options.max_columns + 2,
+            context.block_hint // 1500,
+        )
         if (
             context.supports("table.columns.many")
             and context.rng.random() < options.many_ratio
         ):
-            return context.rng.randint(options.max_columns + 2, options.max_columns + 6)
-        return context.rng.randint(options.min_columns, options.max_columns)
+            return min(
+                context.rng.randint(options.max_columns + 2, options.max_columns + 6),
+                cap,
+            )
+        return context.rng.randint(options.min_columns, min(options.max_columns, cap))
 
     def _cell_count(self, context: GenerationContext, columns: int) -> int:
         if context.supports("table.rows.missing_cells") and context.rng.random() < 0.15:

@@ -82,14 +82,16 @@ class CitationGenerator:
             and context.rng.random() < options.locator_ratio
             else ""
         )
+        narrative = feature == "citation.narrative"
         citation = Citation(
             feature=feature,
             keys=keys,
-            mode="narrative" if feature == "citation.narrative" else "bracketed",
-            prefix=prefix,
+            mode="narrative" if narrative else "bracketed",
+            prefix="" if narrative else prefix,
             locator=locator,
             suppress_author=feature == "citation.suppress_author",
         )
-        if feature == "citation.narrative":
-            return Paragraph(children=(Text("According to "), citation, Text(".")))
+        if narrative:
+            lead = "According to " if not prefix else prefix + " "
+            return Paragraph(children=(Text(lead), citation, Text(".")))
         return Paragraph(children=(citation, Text(".")))
