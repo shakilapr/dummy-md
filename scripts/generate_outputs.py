@@ -56,6 +56,25 @@ SPECS: dict[str, DocumentSpec] = {
             "heading": ElementRule(options=HeadingOptions(levels=(2, 3, 4))),
         },
     ),
+    "zed-preview-showcase": DocumentSpec(
+        dialect="gfm",
+        seed=15,
+        length=LengthSpec(6000),
+        exclude=[
+            "heading.levels.skipped",
+            "heading.titles.repeated",
+            "image.*",
+            "table.cell.image",
+            "html.img",
+            "html.picture",
+            "html.video",
+            "html.audio",
+            "html.iframe",
+        ],
+        elements={
+            "heading": ElementRule(options=HeadingOptions(levels=(2, 3, 4))),
+        },
+    ),
 }
 
 FAMILY_SPECS: dict[str, DocumentSpec] = {
@@ -201,6 +220,7 @@ def main() -> None:
         "gfm-showcase",
         "extended-showcase",
         "stress-showcase",
+        "zed-preview-showcase",
     ):
         spec = SPECS[name]
         (EXAMPLES / f"{name}.md").write_text(

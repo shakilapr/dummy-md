@@ -1,0 +1,53 @@
+{
+  "dialect": "gfm",
+  "seed": 15,
+  "text_seed": null,
+  "length": {
+    "value": 6000,
+    "unit": "chars",
+    "mode": "approximate",
+    "tolerance": 0.05
+  },
+  "include": [],
+  "exclude": [
+    "heading.levels.skipped",
+    "heading.titles.repeated",
+    "image.*",
+    "table.cell.image",
+    "html.img",
+    "html.picture",
+    "html.video",
+    "html.audio",
+    "html.iframe"
+  ],
+  "elements": {
+    "heading": {
+      "min_count": 0,
+      "max_count": null,
+      "weight": 1.0,
+      "options": {
+        "levels": [
+          2,
+          3,
+          4
+        ],
+        "style": "random",
+        "closed": false,
+        "closed_ratio": 0.5,
+        "setext_ratio": 0.25,
+        "allow_skips": false,
+        "attribute_ratio": 0.2,
+        "repeat_ratio": 0.12
+      }
+    }
+  },
+  "feature_weights": {},
+  "text_style": "pseudowords",
+  "max_nesting_depth": 3,
+  "heading_skeleton": true,
+  "include_frontmatter": true,
+  "line_ending": "lf",
+  "trailing_newline": true,
+  "section_chars": 16000,
+  "fill_ratio": 0.9
+}
